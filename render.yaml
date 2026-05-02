@@ -1,0 +1,29 @@
+services:
+  # 🌐 CLICKERS FRONTEND (Static Site)
+  - type: static
+    name: clickers-frontend
+    env: static
+    rootDir: artifacts/clickers
+    buildCommand: pnpm install && pnpm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+
+  # ⚙️ CLICKERS API SERVER (Web Service)
+  - type: web
+    name: clickers-api
+    env: node
+    plan: starter
+    rootDir: artifacts/api-server
+    buildCommand: pnpm install && pnpm run build
+    startCommand: pnpm run start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PAYMOB_HMAC_SECRET
+        sync: false
+      - key: ALLOWED_ORIGIN
+        sync: false
