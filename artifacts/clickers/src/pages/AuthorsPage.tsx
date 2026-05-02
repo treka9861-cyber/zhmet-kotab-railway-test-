@@ -1,29 +1,43 @@
 import { useRoute, Link } from 'wouter';
 import { motion } from 'framer-motion';
-import { Star, BookOpen, Users, ArrowLeft, ArrowRight, Globe } from 'lucide-react';
-import { FaTwitter, FaInstagram } from 'react-icons/fa';
+import { Star, BookOpen, Users, ArrowLeft, ArrowRight, Globe, Instagram, Twitter, ShieldCheck } from 'lucide-react';
 import { AuthorCard } from '@/components/AuthorCard';
 import { BookCard } from '@/components/BookCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { authors, getAuthorById } from '@/services/mock/authors';
-import { getBooksByAuthor } from '@/services/mock/books';
+import { useAuthors, useAuthor, useBooks, useAuthorRating, useRateAuthor } from '@/services/supabase.hooks';
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { sanitizeHTML } from '@/lib/security';
 
 export function AuthorsPage() {
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
+  const { data: authors, isLoading } = useAuthors();
 
   return (
-    <div className="min-h-screen pt-24 pb-16">
+    <div className="min-h-screen pt-24 pb-32 bg-[#FDFBF7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           title={t.authors.title}
           subtitle={t.authors.subtitle}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {authors.map((author, i) => (
-            <AuthorCard key={author.id} author={author} index={i} />
-          ))}
-        </div>
+        
+        {isLoading ? (
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+             {[1,2,3,4,5,6].map(i => <div key={i} className="h-60 bg-primary/5 animate-pulse rounded-[3rem]" />)}
+           </div>
+        ) : authors && authors.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+            {authors.map((author, i) => (
+              <AuthorCard key={author.id} author={author} index={i} />
+            ))}
+          </div>
+        ) : (
+          <div className="py-24 text-center bg-primary/5 rounded-[3rem] border-2 border-dashed border-primary/10">
+            <p className="text-primary/30 font-bold uppercase tracking-wider">No scribes have been registered in the Great Archive yet.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -32,167 +46,208 @@ export function AuthorsPage() {
 export function AuthorDetail() {
   const { t, isRTL, language } = useLanguage();
   const [, params] = useRoute('/authors/:id');
-  const author = getAuthorById(params?.id || '');
+  const authorId = params?.id;
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  if (!author) {
+  const { data: author, isLoading: authorLoading } = useAuthor(authorId);
+  const { data: books, isLoading: booksLoading } = useBooks({ authorId });
+  const { data: rating } = useAuthorRating(authorId);
+  const rateAuthor = useRateAuthor();
+
+  const [hoverRating, setHoverRating] = useState(0);
+
+  if (authorLoading) {
     return (
-      <div className="min-h-screen pt-24 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-[hsl(240_5%_60%)] text-xl mb-4">{t.common.notFound}</h2>
-          <Link href="/authors">
-            <span className="text-[hsl(45_85%_52%)] cursor-pointer hover:underline">{t.common.backToHome}</span>
-          </Link>
-        </div>
+      <div className="min-h-screen bg-[#FDFBF7] flex items-center justify-center pt-24">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
 
-  const name = language === 'ar' ? author.nameAr : author.nameEn;
-  const bio = language === 'ar' ? author.bioAr : author.bioEn;
-  const authorBooks = getBooksByAuthor(author.id);
+  if (!author) {
+    return (
+      <div className="min-h-screen pt-32 flex flex-col items-center justify-center bg-[#FDFBF7]">
+        <h2 className="text-3xl font-black text-primary mb-4 font-cinematic uppercase tracking-wider">{t.common.notFound}</h2>
+        <Link href="/authors">
+          <button className="flex items-center gap-2 text-primary/40 font-bold uppercase tracking-wider text-xs hover:text-primary transition-all">
+             {isRTL ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
+             <span>{t.common.backToHome}</span>
+          </button>
+        </Link>
+      </div>
+    );
+  }
+
+  const name = language === 'ar' ? author.name_ar : author.name_en;
+  const bio = language === 'ar' ? author.bio_ar : author.bio_en;
+
+  const handleRate = async (value: number) => {
+    if (!user?.id) {
+      toast({ title: 'Please login to rate experts', variant: 'destructive' });
+      return;
+    }
+    try {
+      await rateAuthor.mutateAsync({ authorId: author.id as string, rating: value, userId: user.id as string });
+      toast({ title: 'Thank you for your rating!' });
+    } catch (err) {
+      toast({ title: 'Error submitting rating', variant: 'destructive' });
+    }
+  };
 
   return (
-    <div className="min-h-screen pt-20">
-      {/* Header */}
-      <div className="relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{ background: 'radial-gradient(ellipse at top, hsl(270 50% 20%) 0%, hsl(240 15% 4%) 70%)' }}
-        />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-10">
+    <div className="min-h-screen bg-[#FDFBF7] pb-32">
+      {/* Cinematic Profile Header */}
+      <div className="relative py-20 overflow-hidden bg-primary/5">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-[#FDFBF7]" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <Link href="/authors">
-            <motion.span
-              className={`inline-flex items-center gap-2 text-[hsl(240_5%_55%)] hover:text-[hsl(45_85%_52%)] text-sm cursor-pointer transition-colors mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}
-              whileHover={{ x: isRTL ? 3 : -3 }}
+            <motion.button
+              className={`flex items-center gap-2 text-primary/40 font-black uppercase tracking-wider text-xs mb-12 hover:text-primary transition-all ${isRTL ? 'flex-row-reverse ml-auto' : ''}`}
             >
               {isRTL ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
-              {t.authors.title}
-            </motion.span>
+              <span>{t.authors.title}</span>
+            </motion.button>
           </Link>
 
-          <div className={`flex flex-col sm:flex-row gap-6 items-start ${isRTL ? 'sm:flex-row-reverse text-right' : ''}`}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="relative">
-                <img
-                  src={author.imageUrl}
-                  alt={name}
-                  className="w-28 h-28 rounded-full object-cover ring-4 ring-[hsl(45_85%_52%/0.3)] shadow-[0_0_30px_hsl(45_85%_52%/0.2)]"
-                />
-                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-[hsl(45_85%_52%)] rounded-full flex items-center justify-center">
-                  <Star size={14} fill="hsl(240 15% 4%)" className="text-[hsl(240_15%_4%)]" />
-                </div>
-              </div>
-            </motion.div>
+          <div className={`flex flex-col md:flex-row gap-12 items-center md:items-start ${isRTL ? 'md:flex-row-reverse text-right' : 'text-left'}`}>
+             {/* Portrait */}
+             <motion.div
+               initial={{ opacity: 0, scale: 0.9, rotate: -3 }}
+               animate={{ opacity: 1, scale: 1, rotate: 0 }}
+               className="relative"
+             >
+               <div className="w-48 h-48 md:w-64 md:h-64 rounded-[4rem] overflow-hidden border-8 border-white shadow-2xl relative z-10">
+                  <img src={author.photo_url ?? undefined} alt={name} className="w-full h-full object-cover" />
+               </div>
+               <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-accent rounded-full flex items-center justify-center text-white shadow-xl z-20 border-4 border-white">
+                  <ShieldCheck size={32} />
+               </div>
+             </motion.div>
 
-            <motion.div
-              className="flex-1"
-              initial={{ opacity: 0, x: isRTL ? 30 : -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            >
-              <h1 className={`text-3xl font-bold text-[hsl(45_20%_92%)] mb-1 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
-                {name}
-              </h1>
-              <p className="text-[hsl(240_5%_50%)] text-sm mb-3">{author.nationality}</p>
+             {/* Info */}
+             <div className="flex-1 space-y-6">
+               <motion.div
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+               >
+                 <span className="text-accent font-black uppercase tracking-[0.3em] text-xs mb-4 block">Master Architect</span>
+                 <h1 className={`text-5xl md:text-7xl font-black text-primary mb-4 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                   {name}
+                 </h1>
+                 <p className="text-primary/40 text-lg font-bold uppercase tracking-wider">{author.nationality || 'Independent Writer'}</p>
+               </motion.div>
 
-              <div className={`flex items-center gap-4 mb-4 flex-wrap ${isRTL ? 'flex-row-reverse' : ''}`}>
-                {[
-                  { icon: BookOpen, value: author.bookCount, label: t.authors.books, color: 'text-[hsl(45_85%_52%)]' },
-                  { icon: Users, value: `${(author.readerCount / 1000).toFixed(0)}k`, label: t.authors.readers, color: 'text-[hsl(270_55%_65%)]' },
-                  { icon: Star, value: author.rating, label: t.authors.rating, color: 'text-[hsl(45_85%_52%)]', fill: true },
-                ].map(({ icon: Icon, value, label, color, fill }) => (
-                  <div key={label} className={`flex items-center gap-1.5 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                    <Icon size={15} className={color} {...(fill ? { fill: 'currentColor' } : {})} />
-                    <span className={`text-[hsl(240_5%_80%)] font-semibold`}>{value}</span>
-                    <span className="text-[hsl(240_5%_48%)] text-sm">{label}</span>
+               <div className={`flex items-center gap-10 flex-wrap ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black uppercase tracking-wider text-primary/20 mb-1">Works</span>
+                    <div className={`flex items-center gap-2 text-primary font-black text-2xl ${isRTL ? 'flex-row-reverse' : ''}`}>
+                       <BookOpen size={20} className="text-accent" />
+                       <span>{books?.length || 0}</span>
+                    </div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black uppercase tracking-wider text-primary/20 mb-1">Global Rating</span>
+                    <div className={`flex items-center gap-2 text-primary font-black text-2xl ${isRTL ? 'flex-row-reverse' : ''}`}>
+                       <Star size={20} fill="currentColor" className="text-yellow-400" />
+                       <span>{rating?.average?.toFixed(1) || '0.0'}</span>
+                       <span className="text-primary/20 text-xs ml-1 font-bold">({rating?.count || 0})</span>
+                    </div>
+                  </div>
+               </div>
 
-              <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                {author.genres.map((g) => (
-                  <span key={g} className="px-2.5 py-1 bg-[hsl(270_45%_12%)] text-[hsl(270_55%_70%)] text-xs rounded-lg">
-                    {g}
-                  </span>
-                ))}
-              </div>
-            </motion.div>
+               <div className={`flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  {author.instagram && (
+                    <a href={author.instagram} target="_blank" className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary/40 hover:text-accent hover:shadow-xl transition-all border border-border">
+                      <Instagram size={20} />
+                    </a>
+                  )}
+                  {author.twitter && (
+                    <a href={author.twitter} target="_blank" className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary/40 hover:text-accent hover:shadow-xl transition-all border border-border">
+                      <Twitter size={20} />
+                    </a>
+                  )}
+                  {author.website && (
+                    <a href={author.website} target="_blank" className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary/40 hover:text-accent hover:shadow-xl transition-all border border-border">
+                      <Globe size={20} />
+                    </a>
+                  )}
+               </div>
+             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          {/* Bio */}
-          <div className="lg:col-span-2">
-            <motion.section
-              className="mb-10"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <h2 className={`text-xl font-bold text-[hsl(45_20%_90%)] mb-4 ${isRTL ? 'font-arabic text-right' : 'font-cinematic'}`}>
-                {t.authors.biography}
-              </h2>
-              <p className={`text-[hsl(240_5%_60%)] leading-relaxed ${isRTL ? 'font-arabic text-right' : ''}`}>
-                {bio}
-              </p>
-            </motion.section>
-
-            {/* Books */}
-            <section>
-              <h2 className={`text-xl font-bold text-[hsl(45_20%_90%)] mb-6 ${isRTL ? 'font-arabic text-right' : 'font-cinematic'}`}>
-                {language === 'ar' ? 'مؤلفات الكاتب' : 'Author\'s Works'}
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {authorBooks.map((book, i) => (
-                  <BookCard key={book.id} book={book} index={i} />
-                ))}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-20">
+           {/* Sidebar: Rating & Actions */}
+           <div className="lg:col-span-4 order-2 lg:order-1">
+              <div className="sticky top-24 space-y-8">
+                 <div className={`bg-white p-10 rounded-[3.5rem] border border-border shadow-2xl shadow-primary/5 ${isRTL ? 'text-right' : ''}`}>
+                    <h3 className="text-xs font-black text-primary uppercase tracking-wider mb-8">Writer's Legacy</h3>
+                    <p className="text-primary/60 text-sm mb-10 leading-relaxed">
+                       Support this architect by rating their contributions to the great archive. Your appreciation builds the realm.
+                    </p>
+                    
+                    <div className={`flex items-center justify-center gap-3 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                       {[1,2,3,4,5].map(i => (
+                         <button
+                           key={i}
+                           onMouseEnter={() => setHoverRating(i)}
+                           onMouseLeave={() => setHoverRating(0)}
+                           onClick={() => handleRate(i)}
+                           className="transition-transform active:scale-95"
+                         >
+                           <Star 
+                             size={32} 
+                             fill={i <= (hoverRating || 0) ? 'currentColor' : 'none'}
+                             className={`${i <= (hoverRating || 0) ? 'text-yellow-400' : 'text-primary/10'}`} 
+                           />
+                         </button>
+                       ))}
+                    </div>
+                    <p className="text-center text-xs font-black text-primary/20 uppercase tracking-wider">Rate this expert</p>
+                 </div>
               </div>
-            </section>
-          </div>
+           </div>
 
-          {/* Sidebar */}
-          <div>
-            <div className="sticky top-24">
-              <div className="p-5 rounded-2xl bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)] space-y-4">
-                <h3 className={`text-sm font-semibold text-[hsl(240_5%_70%)] uppercase tracking-wide ${isRTL ? 'text-right' : ''}`}>
-                  {language === 'ar' ? 'التواصل مع الكاتب' : 'Connect'}
-                </h3>
-                {author.socialLinks.twitter && (
-                  <a
-                    href={`https://twitter.com/${author.socialLinks.twitter}`}
-                    className={`flex items-center gap-3 text-[hsl(240_5%_60%)] hover:text-[hsl(45_85%_52%)] transition-colors ${isRTL ? 'flex-row-reverse' : ''}`}
-                  >
-                    <FaTwitter size={16} />
-                    <span className="text-sm">{author.socialLinks.twitter}</span>
-                  </a>
-                )}
-                {author.socialLinks.instagram && (
-                  <a
-                    href={`https://instagram.com/${author.socialLinks.instagram}`}
-                    className={`flex items-center gap-3 text-[hsl(240_5%_60%)] hover:text-[hsl(45_85%_52%)] transition-colors ${isRTL ? 'flex-row-reverse' : ''}`}
-                  >
-                    <FaInstagram size={16} />
-                    <span className="text-sm">{author.socialLinks.instagram}</span>
-                  </a>
-                )}
-                {author.socialLinks.website && (
-                  <a
-                    href={`https://${author.socialLinks.website}`}
-                    className={`flex items-center gap-3 text-[hsl(240_5%_60%)] hover:text-[hsl(45_85%_52%)] transition-colors ${isRTL ? 'flex-row-reverse' : ''}`}
-                  >
-                    <Globe size={16} />
-                    <span className="text-sm">{author.socialLinks.website}</span>
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
+           {/* Main Content: Bio & Works */}
+           <div className="lg:col-span-8 order-1 lg:order-2">
+              <section className="mb-24">
+                <h2 className={`text-2xl font-black text-primary mb-8 uppercase tracking-wider ${isRTL ? 'text-right font-arabic' : 'font-cinematic'}`}>
+                   {t.authors.biography}
+                </h2>
+                <div className={`text-xl text-primary/70 leading-[1.8] space-y-6 ${isRTL ? 'text-right font-arabic' : ''}`}>
+                   <p dangerouslySetInnerHTML={{ __html: sanitizeHTML(bio?.replace(/\n/g, '<br/>') ?? '') }} />
+                </div>
+              </section>
+
+              <section>
+                 <div className={`flex flex-col md:flex-row items-baseline justify-between mb-12 gap-4 ${isRTL ? 'md:flex-row-reverse text-right' : ''}`}>
+                    <h2 className={`text-4xl font-black text-primary ${isRTL ? 'font-arabic' : 'font-cinematic uppercase tracking-wider'}`}>
+                       Bibliography
+                    </h2>
+                    <span className="text-primary/20 font-black uppercase text-xs tracking-wider leading-none">The Complete Collection</span>
+                 </div>
+
+                 {booksLoading ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+                       {[1,2,3].map(i => <div key={i} className="aspect-[2/3] bg-primary/5 animate-pulse rounded-[2rem]" />)}
+                    </div>
+                 ) : books && books.length > 0 ? (
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-8">
+                       {books.map((book, i) => (
+                         <BookCard key={book.id} book={book} index={i} />
+                       ))}
+                    </div>
+                 ) : (
+                    <div className="py-20 text-center bg-primary/5 rounded-[3rem] border-2 border-dashed border-primary/10">
+                       <p className="text-primary/30 font-bold uppercase tracking-wider">No works have been cataloged for this scribe yet.</p>
+                    </div>
+                 )}
+              </section>
+           </div>
         </div>
       </div>
     </div>

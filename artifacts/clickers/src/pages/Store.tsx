@@ -4,7 +4,9 @@ import { SlidersHorizontal, Search, X } from 'lucide-react';
 import { BookCard } from '@/components/BookCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { books, Book } from '@/services/mock/books';
+import { useBooks } from '@/services/supabase.hooks';
+import { useSmartSearch } from '@/hooks/useSmartSearch';
+import { useDiscovery } from '@/hooks/useDiscovery';
 
 type SortOption = 'newest' | 'popular' | 'priceAsc' | 'priceDesc';
 type GenreFilter = 'all' | 'Fantasy' | 'Sci-Fi' | 'Historical' | 'Horror' | 'Romance' | 'Adventure' | 'Literary' | 'Mystery';
@@ -12,11 +14,15 @@ type FormatFilter = 'all' | 'digital' | 'physical';
 
 export function Store() {
   const { t, isRTL, language } = useLanguage();
+  const { data: books, isLoading } = useBooks({ status: undefined });
   const [search, setSearch] = useState('');
   const [selectedGenre, setSelectedGenre] = useState<GenreFilter>('all');
   const [selectedFormat, setSelectedFormat] = useState<FormatFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [showFilters, setShowFilters] = useState(false);
+
+  const { results: searchResults, totalFound } = useSmartSearch(search);
+  const { recentViews, trackSearch } = useDiscovery();
 
   const genres: GenreFilter[] = ['all', 'Fantasy', 'Sci-Fi', 'Historical', 'Horror', 'Romance', 'Adventure', 'Literary', 'Mystery'];
   const genreLabels: Record<GenreFilter, string> = {
@@ -32,16 +38,12 @@ export function Store() {
   };
 
   const filteredBooks = useMemo(() => {
-    let result = [...books];
+    let result = [...(books || [])];
 
     if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter((b) =>
-        b.titleAr.includes(q) ||
-        b.titleEn.toLowerCase().includes(q) ||
-        b.authorNameAr.includes(q) ||
-        b.authorNameEn.toLowerCase().includes(q)
-      );
+      // Use the smart fuzzy results if search is active
+      result = searchResults;
+      trackSearch(search);
     }
 
     if (selectedGenre !== 'all') {
@@ -54,10 +56,10 @@ export function Store() {
 
     switch (sortBy) {
       case 'newest':
-        result.sort((a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime());
+        result.sort((a, b) => new Date(b.published_date || 0).getTime() - new Date(a.published_date || 0).getTime());
         break;
       case 'popular':
-        result.sort((a, b) => b.reviewCount - a.reviewCount);
+        result.sort((a, b) => (b.review_count || 0) - (a.review_count || 0));
         break;
       case 'priceAsc':
         result.sort((a, b) => a.price - b.price);
@@ -68,181 +70,190 @@ export function Store() {
     }
 
     return result;
-  }, [search, selectedGenre, selectedFormat, sortBy]);
+  }, [books, search, selectedGenre, selectedFormat, sortBy]);
 
   return (
-    <div className="min-h-screen pt-24 pb-16">
+    <div className="min-h-screen pt-32 pb-32 bg-[#FDFBF7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeader
           title={t.store.title}
           subtitle={t.store.subtitle}
         />
 
-        {/* Search and Filter Bar */}
-        <motion.div
-          className={`flex flex-col sm:flex-row gap-3 mb-6 ${isRTL ? 'sm:flex-row-reverse' : ''}`}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search size={16} className={`absolute top-1/2 -translate-y-1/2 text-[hsl(240_5%_42%)] ${isRTL ? 'right-3' : 'left-3'}`} />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t.nav.search}
-              className={`w-full bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_16%)] rounded-xl py-2.5 text-sm text-[hsl(240_5%_80%)] placeholder:text-[hsl(240_5%_38%)] focus:outline-none focus:border-[hsl(45_85%_52%/0.5)] transition-colors ${isRTL ? 'pr-10 pl-4 text-right' : 'pl-10 pr-4'}`}
-              data-testid="store-search"
-            />
-          </div>
-
-          {/* Sort */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortOption)}
-            className="bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_16%)] rounded-xl px-4 py-2.5 text-sm text-[hsl(240_5%_80%)] focus:outline-none focus:border-[hsl(45_85%_52%/0.5)] transition-colors cursor-pointer"
-            data-testid="store-sort"
-          >
-            <option value="popular">{t.store.popular}</option>
-            <option value="newest">{t.store.newest}</option>
-            <option value="priceAsc">{t.store.priceAsc}</option>
-            <option value="priceDesc">{t.store.priceDesc}</option>
-          </select>
-
-          {/* Filter toggle */}
-          <motion.button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-200 text-sm font-medium ${
-              showFilters
-                ? 'bg-[hsl(45_85%_52%/0.1)] border-[hsl(45_85%_52%/0.5)] text-[hsl(45_85%_52%)]'
-                : 'bg-[hsl(240_14%_7%)] border-[hsl(240_12%_16%)] text-[hsl(240_5%_70%)] hover:border-[hsl(45_85%_52%/0.3)]'
-            } ${isRTL ? 'flex-row-reverse' : ''}`}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-            data-testid="filter-toggle"
-          >
-            <SlidersHorizontal size={15} />
-            {t.store.filters}
-          </motion.button>
-        </motion.div>
-
-        {/* Filter Panel */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              className="mb-6 p-4 bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_16%)] rounded-2xl"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className={`flex flex-col sm:flex-row gap-6 ${isRTL ? 'sm:flex-row-reverse text-right' : ''}`}>
-                {/* Genre filter */}
-                <div className="flex-1">
-                  <p className="text-[hsl(240_5%_70%)] text-xs font-medium mb-3 uppercase tracking-wide">
-                    {t.store.allGenres}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {genres.map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => setSelectedGenre(g)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                          selectedGenre === g
-                            ? 'bg-[hsl(45_85%_52%)] text-[hsl(240_15%_4%)]'
-                            : 'bg-[hsl(240_12%_10%)] text-[hsl(240_5%_60%)] hover:bg-[hsl(240_12%_14%)]'
-                        }`}
-                        data-testid={`genre-filter-${g}`}
-                      >
-                        {genreLabels[g]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Format filter */}
-                <div>
-                  <p className="text-[hsl(240_5%_70%)] text-xs font-medium mb-3 uppercase tracking-wide">
-                    {t.store.format}
-                  </p>
-                  <div className="flex gap-2">
-                    {(['all', 'digital', 'physical'] as FormatFilter[]).map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setSelectedFormat(f)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                          selectedFormat === f
-                            ? 'bg-[hsl(45_85%_52%)] text-[hsl(240_15%_4%)]'
-                            : 'bg-[hsl(240_12%_10%)] text-[hsl(240_5%_60%)] hover:bg-[hsl(240_12%_14%)]'
-                        }`}
-                        data-testid={`format-filter-${f}`}
-                      >
-                        {f === 'all' ? (language === 'ar' ? 'الكل' : 'All') : f === 'digital' ? t.store.digital : t.store.physical}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+        {/* Search and Action Bar */}
+        <div className={`flex flex-col lg:flex-row gap-6 mb-12 items-center ${isRTL ? 'lg:flex-row-reverse' : ''}`}>
+           {/* Search Input */}
+           <div className="relative flex-1 w-full group">
+              <div className="absolute inset-y-0 flex items-center px-4 pointer-events-none text-primary/30 group-focus-within:text-accent transition-colors">
+                 <Search size={20} />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <input 
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t.nav.search}
+                className={`w-full py-5 px-12 bg-white border border-border rounded-[2rem] text-primary font-bold placeholder:text-primary/20 focus:outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent transition-all duration-300 shadow-sm ${isRTL ? 'text-right' : ''}`}
+              />
+           </div>
 
-        {/* Active Filters */}
-        {(selectedGenre !== 'all' || selectedFormat !== 'all' || search) && (
-          <div className={`flex items-center gap-2 mb-4 flex-wrap ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <span className="text-[hsl(240_5%_48%)] text-xs">{language === 'ar' ? 'الفلاتر:' : 'Filters:'}</span>
-            {selectedGenre !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-[hsl(45_85%_52%/0.1)] border border-[hsl(45_85%_52%/0.3)] text-[hsl(45_85%_52%)] text-xs rounded-full">
-                {genreLabels[selectedGenre]}
-                <button onClick={() => setSelectedGenre('all')}><X size={10} /></button>
-              </span>
-            )}
-            {selectedFormat !== 'all' && (
-              <span className="flex items-center gap-1 px-2.5 py-1 bg-[hsl(45_85%_52%/0.1)] border border-[hsl(45_85%_52%/0.3)] text-[hsl(45_85%_52%)] text-xs rounded-full">
-                {selectedFormat}
-                <button onClick={() => setSelectedFormat('all')}><X size={10} /></button>
-              </span>
-            )}
+           <div className={`flex items-center gap-4 w-full lg:w-auto ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <motion.button
+                 onClick={() => setShowFilters(!showFilters)}
+                 className={`flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-5 rounded-[2rem] border transition-all duration-300 font-bold text-sm ${
+                   showFilters 
+                    ? 'bg-primary text-primary-foreground border-primary shadow-xl shadow-primary/20' 
+                    : 'bg-white border-border text-primary hover:border-accent'
+                 }`}
+                 whileTap={{ scale: 0.95 }}
+              >
+                 <SlidersHorizontal size={18} />
+                 <span>{t.store.filters}</span>
+              </motion.button>
+
+              <div className="relative flex-1 lg:flex-none">
+                 <select
+                   value={sortBy}
+                   onChange={(e) => setSortBy(e.target.value as SortOption)}
+                   className="w-full appearance-none bg-white border border-border rounded-[2rem] px-8 py-5 pr-12 font-bold text-sm text-primary focus:outline-none focus:border-accent cursor-pointer shadow-sm hover:border-accent transition-colors"
+                 >
+                    <option value="popular">{t.store.popular}</option>
+                    <option value="newest">{t.store.newest}</option>
+                    <option value="priceAsc">{t.store.priceAsc}</option>
+                    <option value="priceDesc">{t.store.priceDesc}</option>
+                 </select>
+                 <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-primary/30">
+                    <SlidersHorizontal size={14} className="rotate-90" />
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        {/* Recently Viewed (Smart UX) */}
+        {!search && recentViews.length > 0 && (
+          <div className="mb-16">
+            <h4 className={`text-xs font-black uppercase tracking-[0.2em] text-primary/30 mb-6 ${isRTL ? 'text-right' : ''}`}>
+              {isRTL ? 'شاهدتها مؤخراً' : 'Recently Viewed'}
+            </h4>
+            <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6`}>
+              {recentViews.slice(0, 5).map((book, idx) => (
+                <div key={`recent-${book.id}`} className="scale-90 opacity-60 hover:scale-100 hover:opacity-100 transition-all">
+                  <BookCard book={book} variant="compact" index={idx} />
+                </div>
+              ))}
+            </div>
+            <div className="h-px w-full bg-border/50 mt-12" />
           </div>
         )}
 
-        {/* Results Count */}
-        <p className={`text-[hsl(240_5%_48%)] text-sm mb-6 ${isRTL ? 'text-right' : ''}`}>
-          {filteredBooks.length} {language === 'ar' ? 'كتاب' : 'books'}
-        </p>
+        {/* Filters Panel */}
+        <AnimatePresence>
+           {showFilters && (
+             <motion.div
+               initial={{ opacity: 0, y: -20, scale: 0.95 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               exit={{ opacity: 0, y: -20, scale: 0.95 }}
+               className="mb-12 p-10 bg-white rounded-[3rem] border border-border shadow-2xl relative overflow-hidden"
+             >
+                <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 blur-[80px] rounded-full pointer-events-none" />
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10 ${isRTL ? 'text-right' : 'text-left'}`}>
+                   <div>
+                      <h4 className="text-accent font-black text-xs uppercase tracking-[0.3em] mb-6">Discovery Genres</h4>
+                      <div className={`flex flex-wrap gap-2 ${isRTL ? 'justify-end' : ''}`}>
+                         {genres.map((g) => (
+                           <button
+                             key={g}
+                             onClick={() => setSelectedGenre(g)}
+                             className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+                               selectedGenre === g 
+                                ? 'bg-primary text-primary-foreground shadow-lg' 
+                                : 'bg-primary/5 text-primary/60 hover:bg-primary/10'
+                             }`}
+                           >
+                              {genreLabels[g]}
+                           </button>
+                         ))}
+                      </div>
+                   </div>
 
-        {/* Books Grid */}
+                   <div>
+                      <h4 className="text-accent font-black text-xs uppercase tracking-[0.3em] mb-6">Preferred Format</h4>
+                      <div className={`flex gap-3 ${isRTL ? 'justify-end' : ''}`}>
+                        {(['all', 'digital', 'physical'] as FormatFilter[]).map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setSelectedFormat(f)}
+                            className={`flex-1 px-5 py-3 rounded-xl text-xs font-bold transition-all duration-300 ${
+                              selectedFormat === f 
+                                ? 'bg-primary text-primary-foreground shadow-lg' 
+                                : 'bg-primary/5 text-primary/60 hover:bg-primary/10'
+                            }`}
+                          >
+                             {f === 'all' ? (language === 'ar' ? 'الكل' : 'All') : f === 'digital' ? t.store.digital : t.store.physical}
+                          </button>
+                        ))}
+                      </div>
+                   </div>
+                </div>
+             </motion.div>
+           )}
+        </AnimatePresence>
+
+        {/* Results Info */}
+        <div className={`flex items-center justify-between mb-10 gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+           <p className="text-primary font-bold text-sm">
+              {filteredBooks.length} <span className="opacity-40">{language === 'ar' ? 'كتاب متاح' : 'Available Titles'}</span>
+           </p>
+           {(selectedGenre !== 'all' || selectedFormat !== 'all' || search) && (
+              <button 
+                onClick={() => { setSearch(''); setSelectedGenre('all'); setSelectedFormat('all'); }}
+                className="text-accent font-black text-xs uppercase tracking-wider hover:text-primary transition-colors"
+              >
+                Reset All
+              </button>
+           )}
+        </div>
+
+        {/* Store Grid */}
         <AnimatePresence mode="wait">
           {filteredBooks.length > 0 ? (
             <motion.div
-              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+              key="grid"
+              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 md:gap-10"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              layout
             >
-              {filteredBooks.map((book, i) => (
-                <BookCard key={book.id} book={book} index={i} />
-              ))}
+              {isLoading ? (
+                Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="aspect-[2/3] bg-primary/5 rounded-3xl animate-pulse" />
+                ))
+              ) : (
+                filteredBooks.map((book, i) => (
+                  <BookCard key={book.id} book={book} index={i} />
+                ))
+              )}
             </motion.div>
           ) : (
             <motion.div
-              className="text-center py-24"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              key="no-results"
+              className="py-40 text-center"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
             >
-              <div className="w-16 h-16 rounded-full bg-[hsl(240_14%_10%)] flex items-center justify-center mx-auto mb-4">
-                <Search size={24} className="text-[hsl(240_5%_38%)]" />
-              </div>
-              <h3 className={`text-[hsl(240_5%_60%)] font-semibold text-lg mb-2 ${isRTL ? 'font-arabic' : ''}`}>
-                {t.store.noResults}
-              </h3>
-              <button
-                onClick={() => { setSearch(''); setSelectedGenre('all'); setSelectedFormat('all'); }}
-                className="text-[hsl(45_85%_52%)] text-sm hover:underline"
-              >
-                {language === 'ar' ? 'مسح الفلاتر' : 'Clear filters'}
-              </button>
+               <div className="w-24 h-24 bg-primary/5 rounded-full flex items-center justify-center mx-auto mb-8 text-primary/20">
+                  <Search size={40} />
+               </div>
+               <h3 className={`text-3xl font-bold text-primary mb-4 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                 {t.store.noResults}
+               </h3>
+               <p className="text-primary/40 text-lg mb-8">We couldn't find any stories matching your current path.</p>
+               <button 
+                 onClick={() => { setSearch(''); setSelectedGenre('all'); setSelectedFormat('all'); }}
+                 className="px-10 py-4 bg-primary text-primary-foreground font-bold rounded-2xl hover:bg-accent hover:text-primary transition-all"
+               >
+                 Go Back to All Stories
+               </button>
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,11 +1,55 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import compression from "compression";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// ── SECURITY: Basic HTTP headers hardening
+app.use(helmet({
+  contentSecurityPolicy: false, // Configured separately if needed
+  crossOriginEmbedderPolicy: false,
+}));
+
+// ── PERFORMANCE: GZIP compress all API responses
+// Reduces bandwidth on JSON payloads by 70-80%
+app.use(compression());
+
+// ── SECURITY: Global rate limiting — prevents abuse & DDoS
+// Allows up to 200 requests per IP per 15 minutes
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+app.use(globalLimiter);
+
+// ── SECURITY: Strict rate limit on payment endpoint specifically
+// Prevents bots from hammering Paymob webhook URL (max 30/15min per IP)
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: "Payment rate limit exceeded." },
+});
+app.use("/api/paymob", paymentLimiter);
+
+// ── PERFORMANCE: Limit request body size (prevents memory exhaustion attacks)
+app.use(express.json({ limit: "100kb" }));
+app.use(express.urlencoded({ extended: true, limit: "100kb" }));
+
+// ── CORS: Allow only your actual domain in production
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN || "*",
+  methods: ["GET", "POST", "PATCH", "DELETE"],
+}));
+
+// ── LOGGING
 app.use(
   pinoHttp({
     logger,
@@ -25,9 +69,6 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 

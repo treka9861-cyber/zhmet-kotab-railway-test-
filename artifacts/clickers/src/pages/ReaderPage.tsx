@@ -306,7 +306,7 @@ export function ReaderPage() {
         >
           {/* Chapter header */}
           <div className={`mb-10 ${isRTL ? 'text-right' : 'text-center'}`}>
-            <p className="text-xs font-medium mb-2 opacity-40 uppercase tracking-widest" style={{ color: currentTheme.text }}>
+            <p className="text-xs font-medium mb-2 opacity-40 uppercase tracking-wider" style={{ color: currentTheme.text }}>
               {language === 'ar' ? 'الفصل' : 'Chapter'} {currentChapter}
             </p>
             <h2

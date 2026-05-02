@@ -1,361 +1,483 @@
 import { useRoute, Link } from 'wouter';
-import { motion } from 'framer-motion';
-import { Star, ShoppingCart, BookOpen, Play, Music, ArrowLeft, ArrowRight, Tag } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
+import { 
+  Star, ShoppingCart, BookOpen, Play, Music, 
+  ArrowLeft, ArrowRight, Tag, ShieldCheck, MessageCircle,
+  BarChart3, X, Volume2, VolumeX
+} from 'lucide-react';
 import { BookCard } from '@/components/BookCard';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { getBookById, getRecommendedBooks } from '@/services/mock/books';
+import { useCart } from '@/contexts/CartContext';
+import { useBook, useBooks, useBookRating, useRateBook, useBookReviews } from '@/services/supabase.hooks';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { sanitizeHTML } from '@/lib/security';
+import { SEO } from '@/components/SEO';
+import { useDiscovery } from '@/hooks/useDiscovery';
+
+// Extract YouTube ID Utility
+function getYouTubeID(url: string) {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
 
 export function BookDetail() {
   const { t, isRTL, language } = useLanguage();
   const [, params] = useRoute('/book/:id');
-  const book = getBookById(params?.id || '');
+  const bookId = params?.id;
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const { data: book, isLoading: bookLoading } = useBook(bookId);
+  const { addItem, openCart } = useCart();
+  const { data: recommendedData } = useBooks({ genre: book?.genre });
+  const { data: rating } = useBookRating(bookId);
+  const { data: reviews, isLoading: reviewsLoading } = useBookReviews(bookId);
+  const rateBook = useRateBook();
+
+  const [hoverRating, setHoverRating] = useState(0);
+  const [isRating, setIsRating] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
+  const { trackView } = useDiscovery();
+
+  // Track the view automatically for "Recently Viewed" logic
+  useEffect(() => {
+    if (book) trackView(book);
+  }, [book, trackView]);
+
+  // Find the current user's review in the reviews list
+  const userReview = useMemo(() => {
+    if (!user || !reviews) return { rating: 0, comment: '' };
+    const myReview = (reviews as any[]).find((r: { user_id: string }) => r.user_id === user.id);
+    return myReview ? { rating: myReview.rating, comment: myReview.comment || '' } : { rating: 0, comment: '' };
+  }, [user, reviews]);
+
+  const userRating = userReview.rating;
+  const [draftRating, setDraftRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+
+  useEffect(() => {
+    if (userRating > 0) setDraftRating(userRating);
+    if (userReview.comment) setReviewComment(userReview.comment);
+  }, [userRating, userReview.comment]);
+
+  const youtubeId = useMemo(() => book?.trailer_url ? getYouTubeID(book.trailer_url) : null, [book?.trailer_url]);
+
+  // Handle ESC key to close trailer
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowTrailer(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  if (bookLoading) {
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center bg-[#FDFBF7]">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!book) {
     return (
-      <div className="min-h-screen pt-24 flex items-center justify-center">
+      <div className="min-h-screen pt-24 flex items-center justify-center bg-[#FDFBF7]">
         <div className="text-center">
-          <h2 className="text-[hsl(240_5%_60%)] text-xl mb-4">{t.common.notFound}</h2>
+          <h2 className="text-primary/40 text-xl mb-4 uppercase font-black tracking-wider">{t.common.notFound}</h2>
           <Link href="/store">
-            <span className="text-[hsl(45_85%_52%)] cursor-pointer hover:underline">{t.common.backToHome}</span>
+            <span className="text-accent cursor-pointer hover:underline font-bold uppercase tracking-wider text-xs">{t.common.backToHome}</span>
           </Link>
         </div>
       </div>
     );
   }
 
-  const title = language === 'ar' ? book.titleAr : book.titleEn;
-  const authorName = language === 'ar' ? book.authorNameAr : book.authorNameEn;
-  const description = language === 'ar' ? book.descriptionAr : book.descriptionEn;
-  const recommended = getRecommendedBooks(book.id, 4);
-  const discount = book.originalPrice ? Math.round((1 - book.price / book.originalPrice) * 100) : null;
+  const title = language === 'ar' ? book.title_ar : book.title_en;
+  const authorRecord = Array.isArray(book.authors) ? book.authors[0] : book.authors;
+  const authorName = authorRecord ? (language === 'ar' ? authorRecord.name_ar : authorRecord.name_en) : 'Uncharted Pen';
+  const description = language === 'ar' ? book.description_ar : book.description_en;
+  const recommended = (recommendedData ?? []).filter((b: any) => b.id !== book.id).slice(0, 4);
+  const discount = book.original_price ? Math.round((1 - book.price / book.original_price) * 100) : null;
 
-  const mockReviews = [
-    {
-      id: 1,
-      nameAr: 'محمد العلي',
-      nameEn: 'Mohammed Al-Ali',
-      rating: 5,
-      textAr: 'رواية استثنائية أخذتني إلى عالم آخر تماماً. من أفضل ما قرأت هذا العام!',
-      textEn: 'An exceptional novel that took me to a completely different world. One of the best I\'ve read this year!',
-      date: '2024-10-15',
-    },
-    {
-      id: 2,
-      nameAr: 'فاطمة الزهراء',
-      nameEn: 'Fatima Al-Zahra',
-      rating: 5,
-      textAr: 'الأسلوب رائع والحبكة تشدك من أول صفحة. لا أستطيع إنزاله قبل إكماله.',
-      textEn: 'Brilliant style and the plot grips you from the first page. I couldn\'t put it down until I finished it.',
-      date: '2024-09-28',
-    },
-    {
-      id: 3,
-      nameAr: 'عبدالله النمر',
-      nameEn: 'Abdullah Al-Namir',
-      rating: 4,
-      textAr: 'قصة رائعة مع شخصيات مبنية بعمق. أنصح به بشدة لمحبي الخيال.',
-      textEn: 'Wonderful story with deeply built characters. Highly recommended for fantasy lovers.',
-      date: '2024-09-10',
-    },
-  ];
+  const handleSubmitReview = async () => {
+    if (!user?.id) {
+      toast({ title: language === 'ar' ? 'سجّل دخولك للتقييم' : 'Please login to rate', variant: 'destructive' });
+      return;
+    }
+    if (draftRating === 0) {
+      toast({ title: language === 'ar' ? 'الرجاء اختيار تقييم' : 'Please select a star rating', variant: 'destructive' });
+      return;
+    }
+    setIsRating(true);
+    try {
+      await rateBook.mutateAsync({ 
+        bookId: book.id, 
+        rating: draftRating, 
+        userId: user.id as string,
+        comment: reviewComment.trim()
+      });
+      toast({ title: language === 'ar' ? 'تم تسجيل تقييمك بنجاح!' : 'Your review has been recorded!' });
+    } catch (err: any) {
+      console.error('[Rating Error]', err?.message || err);
+      toast({ title: err?.message || 'Failed to save review', variant: 'destructive' });
+    } finally {
+      setIsRating(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen pt-20">
-      {/* Hero */}
-      <div className="relative overflow-hidden">
+    <div className="min-h-screen pt-20 bg-[#FDFBF7] pb-32">
+      <AnimatePresence>
+        {showTrailer && youtubeId && (
+          <motion.div 
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <button 
+              onClick={() => setShowTrailer(false)}
+              className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all z-[110]"
+            >
+              <X size={24} />
+            </button>
+            <motion.div 
+              className="w-full max-w-6xl aspect-video rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] border border-white/10 bg-black relative"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            >
+              <iframe
+                src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1`}
+                title="Chronicle Trailer"
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic SEO for this book */}
+      <SEO
+        title={language === 'ar' ? book.title_ar : book.title_en}
+        description={language === 'ar'
+          ? (book.description_ar?.slice(0, 160) || book.title_ar)
+          : (book.description_en?.slice(0, 160) || book.title_en)}
+        image={book.cover_url || undefined}
+        type="book"
+      />
+
+      {/* Cinematic Hero */}
+      <div className="relative overflow-hidden pt-16 pb-20">
         <div className="absolute inset-0">
-          <img src={book.coverUrl} alt="" className="w-full h-full object-cover opacity-10 blur-xl scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[hsl(240_15%_4%/0.8)] to-[hsl(240_15%_4%)]" />
+          <img src={book.cover_url || ''} alt="" className="w-full h-full object-cover opacity-5 blur-3xl scale-150" />
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-[#FDFBF7]" />
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8">
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link href="/store">
-            <motion.span
-              className={`inline-flex items-center gap-2 text-[hsl(240_5%_55%)] hover:text-[hsl(45_85%_52%)] text-sm cursor-pointer transition-colors mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}
+            <motion.button
+              className={`flex items-center gap-2 text-primary/40 hover:text-primary text-xs font-black uppercase tracking-[0.2em] transition-colors mb-12 ${isRTL ? 'flex-row-reverse ml-auto' : ''}`}
               whileHover={{ x: isRTL ? 3 : -3 }}
             >
               {isRTL ? <ArrowRight size={14} /> : <ArrowLeft size={14} />}
               {t.nav.store}
-            </motion.span>
+            </motion.button>
           </Link>
 
-          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-10 items-start ${isRTL ? 'lg:grid-flow-col-dense' : ''}`}>
-            {/* Cover */}
+          <div className={`grid grid-cols-1 lg:grid-cols-12 gap-16 items-start`}>
+            {/* Cover Art */}
             <motion.div
-              className={`${isRTL ? 'order-2' : 'order-1'} max-w-xs mx-auto lg:max-w-sm`}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              className="lg:col-span-5 flex justify-center lg:justify-start"
+              initial={{ opacity: 0, x: isRTL ? 50 : -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8 }}
             >
-              <div className="relative">
-                <div
-                  className="absolute inset-0 rounded-2xl"
-                  style={{ background: 'radial-gradient(ellipse, hsl(45 85% 52% / 0.15) 0%, transparent 70%)', filter: 'blur(20px)', transform: 'scale(1.1)' }}
-                />
-                <img
-                  src={book.coverUrl}
-                  alt={title}
-                  className="relative w-full aspect-[2/3] object-cover rounded-2xl shadow-[0_20px_60px_hsl(240_15%_4%/0.8)]"
-                />
-                {book.isNew && (
-                  <div className="absolute top-4 right-4 px-2.5 py-1 bg-[hsl(45_85%_52%)] text-[hsl(240_15%_4%)] text-xs font-bold rounded-lg">
-                    {language === 'ar' ? 'جديد' : 'NEW'}
-                  </div>
-                )}
-                {discount && (
-                  <div className="absolute top-4 left-4 px-2.5 py-1 bg-[hsl(0_72%_51%)] text-white text-xs font-bold rounded-lg">
-                    -{discount}%
+              <div className="relative group">
+                <div className="absolute inset-0 rounded-[2.5rem] bg-accent/20 blur-[100px] scale-110 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                <div className="relative overflow-hidden rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(139,29,61,0.5)] border-4 border-white">
+                  <img
+                    src={book.cover_url || ''}
+                    alt={title}
+                    className="w-full max-w-md aspect-[2/3] object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  {youtubeId && (
+                    <button 
+                      onClick={() => setShowTrailer(true)}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center backdrop-blur-[2px]"
+                    >
+                      <div className="w-20 h-20 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-white backdrop-blur-md scale-75 group-hover:scale-100 transition-transform duration-500 shadow-2xl">
+                        <Play size={32} fill="white" className="ml-1" />
+                      </div>
+                      <span className="absolute bottom-10 text-xs font-black text-white uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-700 delay-100">Watch Trailer</span>
+                    </button>
+                  )}
+                </div>
+                {book.is_new && (
+                  <div className="absolute top-8 right-8 px-5 py-2 bg-yellow-400 text-primary text-xs font-black rounded-2xl shadow-xl rotate-3">
+                    {language === 'ar' ? 'إصدار جديد' : 'NEW RELEASE'}
                   </div>
                 )}
               </div>
             </motion.div>
 
-            {/* Info */}
+            {/* Book Chronicles */}
             <motion.div
-              className={`${isRTL ? 'order-1 text-right' : 'order-2 text-left'}`}
+              className={`lg:col-span-7 ${isRTL ? 'text-right' : 'text-left'}`}
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
             >
-              <span className="inline-block px-3 py-1 bg-[hsl(270_45%_15%)] text-[hsl(270_55%_70%)] text-xs font-medium rounded-full mb-4">
-                {language === 'ar' ? book.genreAr : book.genre}
-              </span>
-
-              <h1 className={`text-3xl sm:text-4xl font-bold text-[hsl(45_20%_92%)] mb-3 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
-                {title}
-              </h1>
-
-              <Link href={`/authors/${book.authorId}`}>
-                <p className={`text-[hsl(45_85%_52%)] font-medium text-base mb-4 cursor-pointer hover:underline ${isRTL ? 'font-arabic' : ''}`}>
-                  {authorName}
-                </p>
-              </Link>
-
-              {/* Rating */}
-              <div className={`flex items-center gap-3 mb-6 ${isRTL ? 'flex-row-reverse justify-end' : ''}`}>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      size={16}
-                      className={star <= Math.round(book.rating) ? 'fill-[hsl(45_85%_52%)] text-[hsl(45_85%_52%)]' : 'text-[hsl(240_12%_25%)]'}
-                    />
-                  ))}
-                </div>
-                <span className="text-[hsl(45_85%_52%)] font-semibold">{book.rating}</span>
-                <span className="text-[hsl(240_5%_45%)] text-sm">({book.reviewCount.toLocaleString()} {t.book.reviews})</span>
-              </div>
-
-              <p className={`text-[hsl(240_5%_60%)] leading-relaxed mb-6 ${isRTL ? 'font-arabic' : ''}`}>
-                {description}
-              </p>
-
-              {/* Meta info */}
-              <div className={`grid grid-cols-2 gap-3 mb-6 text-sm ${isRTL ? 'text-right' : ''}`}>
-                {[
-                  { label: t.book.pages, value: `${book.pages} ${language === 'ar' ? 'صفحة' : 'pages'}` },
-                  { label: t.book.format, value: book.format === 'both' ? (language === 'ar' ? 'رقمي + مادي' : 'Digital + Physical') : book.format },
-                  { label: t.book.publishedDate, value: new Date(book.publishedDate).toLocaleDateString(language === 'ar' ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'long' }) },
-                  { label: t.book.language, value: book.language === 'ar' ? t.common.arabic : book.language === 'en' ? t.common.english : `${t.common.arabic} / ${t.common.english}` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-[hsl(240_14%_7%)] rounded-xl p-3 border border-[hsl(240_12%_14%)]">
-                    <p className="text-[hsl(240_5%_45%)] text-xs mb-1">{label}</p>
-                    <p className="text-[hsl(240_5%_80%)] font-medium text-xs">{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Pricing */}
-              <div className={`flex items-baseline gap-3 mb-6 ${isRTL ? 'flex-row-reverse justify-end' : ''}`}>
-                <span className="text-3xl font-bold text-gradient-gold font-cinematic">
-                  {book.price} {language === 'ar' ? 'ر.س' : 'SAR'}
+              <div className={`flex items-center gap-2 mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <span className="px-4 py-1.5 bg-primary/5 text-primary text-xs font-black uppercase tracking-wider rounded-full border border-primary/5">
+                  {language === 'ar' ? book.genre_ar : book.genre}
                 </span>
-                {book.originalPrice && (
-                  <span className="text-[hsl(240_5%_40%)] text-lg line-through">
-                    {book.originalPrice} {language === 'ar' ? 'ر.س' : 'SAR'}
+                {discount && (
+                  <span className="px-4 py-1.5 bg-red-500 text-white text-xs font-black rounded-full shadow-lg">
+                    -{discount}%
                   </span>
                 )}
               </div>
 
-              {/* CTAs */}
-              <div className={`flex flex-wrap gap-3 mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                <motion.button
-                  className={`flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[hsl(45_85%_52%)] to-[hsl(40_90%_48%)] text-[hsl(240_15%_4%)] rounded-xl font-bold glow-gold ${isRTL ? 'flex-row-reverse' : ''}`}
-                  whileHover={{ scale: 1.03, boxShadow: '0 0 30px hsl(45 85% 52% / 0.4)' }}
-                  whileTap={{ scale: 0.97 }}
-                  data-testid="button-buy-now"
-                >
-                  <ShoppingCart size={18} />
-                  {t.book.buyNow}
-                </motion.button>
-                <motion.button
-                  className={`flex items-center gap-2 px-6 py-3 bg-[hsl(240_14%_10%)] border border-[hsl(240_12%_22%)] text-[hsl(240_5%_80%)] rounded-xl font-medium hover:border-[hsl(45_85%_52%/0.4)] hover:text-[hsl(45_85%_52%)] transition-all duration-200 ${isRTL ? 'flex-row-reverse' : ''}`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  data-testid="button-read-sample"
-                >
-                  <BookOpen size={18} />
-                  {t.book.readSample}
-                </motion.button>
+              <h1 className={`text-5xl md:text-7xl font-black text-primary mb-6 leading-[1.1] ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                {title}
+              </h1>
+
+              <Link href={`/authors/${book.author_id}`}>
+                <p className={`text-2xl text-accent font-bold mb-8 cursor-pointer hover:tracking-wider transition-all inline-flex items-center gap-3 ${isRTL ? 'font-arabic flex-row-reverse' : ''}`}>
+                  <ShieldCheck size={24} />
+                  <span>{authorName}</span>
+                </p>
+              </Link>
+
+              {/* Advanced Rating System */}
+              <div className={`flex flex-col mb-10 p-8 bg-white rounded-[3rem] border border-border shadow-2xl shadow-primary/5 max-w-md ${isRTL ? 'ml-auto' : ''}`}>
+                 <div className="flex items-center justify-between mb-8">
+                    <div>
+                       <span className="text-\[11px\] font-black uppercase tracking-[0.3em] text-primary/20 mb-2 block">Archive Quality Index</span>
+                       <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                          <span className="text-5xl font-black text-primary">{(rating?.average || 0).toFixed(1)}</span>
+                          <div className="flex flex-col">
+                             <div className="flex items-center gap-0.5">
+                               {[1, 2, 3, 4, 5].map((s) => (
+                                 <Star key={s} size={12} fill={s <= Math.round(rating?.average || 0) ? 'currentColor' : 'none'} className={s <= Math.round(rating?.average || 0) ? 'text-yellow-400' : 'text-primary/10'} />
+                               ))}
+                             </div>
+                             <span className="text-xs font-black text-primary/30 uppercase tracking-wider mt-1">{rating?.count || 0} Reader Reviews</span>
+                          </div>
+                       </div>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary/20">
+                       <BarChart3 size={24} />
+                    </div>
+                 </div>
+
+                 {/* Distribution Bars */}
+                 <div className="space-y-3 mb-8">
+                    {[5, 4, 3, 2, 1].map(star => {
+                       const count = rating?.distribution?.[star] || 0;
+                       const percentage = rating?.count ? (count / rating.count) * 100 : 0;
+                       return (
+                         <div key={star} className={`flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <span className="text-xs font-black text-primary/40 w-4">{star}</span>
+                            <div className="flex-1 h-1.5 bg-primary/5 rounded-full overflow-hidden">
+                               <motion.div 
+                                 initial={{ width: 0 }}
+                                 animate={{ width: `${percentage}%` }}
+                                 transition={{ duration: 1, delay: star * 0.1 }}
+                                 className="h-full bg-accent rounded-full" 
+                               />
+                            </div>
+                            <span className="text-\[11px\] font-black text-primary/20 w-8">{Math.round(percentage)}%</span>
+                         </div>
+                       );
+                    })}
+                 </div>
+
+                 <div className="pt-6 border-t border-primary/5">
+                    <p className="text-\[11px\] font-black text-primary/40 uppercase tracking-wider mb-4 text-center">
+                       {isRating ? (isRTL ? 'جاري الحفظ...' : 'Recording in Archive...') : (userRating > 0 ? (isRTL ? 'تعديل التقييم' : 'Edit Your Review') : (isRTL ? 'أضف تقييمك' : 'Write a Review'))}
+                    </p>
+                    <div className={`flex flex-col gap-4 ${isRating ? 'opacity-50 pointer-events-none' : ''}`}>
+                      <div className={`flex items-center justify-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onMouseEnter={() => setHoverRating(star)}
+                            onMouseLeave={() => setHoverRating(0)}
+                            onClick={() => setDraftRating(star)}
+                            className="transition-all hover:scale-125 active:scale-90 p-1 relative z-30"
+                          >
+                            <Star
+                              size={28}
+                              fill={star <= (hoverRating || draftRating || 0) ? 'currentColor' : 'none'}
+                              className={`${star <= (hoverRating || draftRating || 0) ? 'text-yellow-400' : 'text-primary/20 hover:text-primary/40'} transition-colors duration-200 drop-shadow-sm`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        value={reviewComment}
+                        onChange={(e) => setReviewComment(e.target.value)}
+                        placeholder={isRTL ? 'اكتب رأيك هنا (اختياري)...' : 'Write your thoughts here (optional)...'}
+                        className={`w-full bg-primary/5 border border-primary/10 rounded-xl px-4 py-3 text-sm text-primary placeholder:text-primary/30 focus:outline-none focus:border-accent transition-colors resize-none ${isRTL ? 'text-right' : 'text-left'}`}
+                        rows={3}
+                      />
+                      <button
+                        onClick={handleSubmitReview}
+                        className="w-full py-3 bg-primary text-white font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-accent hover:text-primary transition-all shadow-md active:scale-95"
+                      >
+                         {isRTL ? 'حفظ التقييم' : 'Submit Review'}
+                      </button>
+                    </div>
+                 </div>
               </div>
 
-              {/* Tags */}
-              <div className={`flex flex-wrap gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                {book.tags.map((tag) => (
-                  <span key={tag} className="flex items-center gap-1 px-3 py-1 bg-[hsl(240_12%_10%)] border border-[hsl(240_12%_18%)] text-[hsl(240_5%_50%)] text-xs rounded-full">
-                    <Tag size={10} />
-                    {tag}
-                  </span>
+              <div 
+                className={`text-xl text-primary/70 leading-relaxed mb-10 max-w-2xl ${isRTL ? 'font-arabic' : ''}`} 
+                dangerouslySetInnerHTML={{ __html: sanitizeHTML(description?.replace(/\n/g, '<br/>') || '') }} 
+              />
+
+              {/* Master Meta info */}
+              <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 ${isRTL ? 'text-right' : ''}`}>
+                {[
+                  { label: t.book.pages, value: `${book.pages} Pages` },
+                  { label: t.book.format, value: book.format?.toUpperCase() || 'MULTI' },
+                  { label: 'Era', value: book.published_date ? new Date(book.published_date).getFullYear() : 'Ancient' },
+                  { label: t.book.language, value: book.language?.toUpperCase() },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-white rounded-[1.5rem] p-5 border border-border shadow-sm group hover:border-accent transition-colors text-center md:text-left">
+                    <p className="text-primary/30 text-\[11px\] font-black uppercase tracking-wider mb-1">{label}</p>
+                    <p className="text-primary font-black text-xs uppercase tracking-wider">{value}</p>
+                  </div>
                 ))}
+              </div>
+
+              {/* CTAs */}
+              <div className={`flex flex-wrap gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <motion.button
+                  onClick={() => {
+                    addItem({
+                      bookId: book.id,
+                      title: title,
+                      coverUrl: book.cover_url || '',
+                      price: book.price,
+                      quantity: 1,
+                      format: book.format as 'digital' | 'physical' | 'both',
+                    });
+                    openCart();
+                  }}
+                  className={`flex items-center gap-4 px-10 py-6 bg-primary text-white rounded-[2rem] font-black uppercase tracking-wider text-xs shadow-2xl shadow-primary/30 transition-all`}
+                  whileHover={{ y: -4, backgroundColor: 'var(--accent)' }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <ShoppingCart size={20} />
+                  {isRTL ? 'أضف للسلة الآن' : 'Acquire for Archive'}
+                </motion.button>
+                
+                {youtubeId && (
+                  <motion.button
+                    onClick={() => setShowTrailer(true)}
+                    className="flex items-center gap-4 px-10 py-6 bg-white border-2 border-primary text-primary rounded-[2rem] font-black uppercase tracking-wider text-xs transition-all"
+                    whileHover={{ y: -4, backgroundColor: 'rgba(139,29,61,0.05)' }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Play size={20} fill="currentColor" />
+                    {isRTL ? 'شاهد الإعلان' : 'Watch Trailer'}
+                  </motion.button>
+                )}
               </div>
             </motion.div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          <div className="lg:col-span-2">
-            {/* Trailer */}
-            <motion.section
-              className="mb-10"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className={`text-xl font-bold text-[hsl(45_20%_90%)] mb-4 ${isRTL ? 'font-arabic text-right' : 'font-cinematic'}`}>
-                {t.book.trailer}
-              </h2>
-              <div className="relative rounded-2xl overflow-hidden aspect-video bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)] cursor-pointer group">
-                <img src={book.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <motion.div
-                    className="w-16 h-16 rounded-full bg-[hsl(45_85%_52%/0.9)] flex items-center justify-center shadow-[0_0_30px_hsl(45_85%_52%/0.5)]"
-                    whileHover={{ scale: 1.1 }}
-                  >
-                    <Play size={22} fill="hsl(240 15% 4%)" className="text-[hsl(240_15%_4%)] ml-1" />
-                  </motion.div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-20">
+          <div className="lg:col-span-12">
+            
+            {/* Live Review Stream */}
+            <section>
+              <div className={`flex items-baseline justify-between mb-12 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <h2 className={`text-4xl font-black text-primary uppercase tracking-wider ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                   {isRTL ? 'تعليقات القراء' : 'Readers Comments'}
+                </h2>
+                <div className="flex items-center gap-2 text-primary/20 font-black uppercase text-xs tracking-wider">
+                   <MessageCircle size={14} />
+                   <span>{reviews?.length || 0} Entries</span>
                 </div>
               </div>
-            </motion.section>
 
-            {/* Ambient Music */}
-            <motion.section
-              className="mb-10"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className={`text-xl font-bold text-[hsl(45_20%_90%)] mb-4 ${isRTL ? 'font-arabic text-right' : 'font-cinematic'}`}>
-                {t.book.ambientMusic}
-              </h2>
-              <div className={`flex items-center gap-4 p-4 rounded-xl bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)] ${isRTL ? 'flex-row-reverse' : ''}`}>
-                <div className="w-12 h-12 rounded-full bg-[hsl(270_50%_15%)] flex items-center justify-center flex-shrink-0">
-                  <Music size={20} className="text-[hsl(270_55%_65%)]" />
-                </div>
-                <div className="flex-1">
-                  <p className={`text-[hsl(240_5%_80%)] text-sm font-medium ${isRTL ? 'font-arabic text-right' : ''}`}>
-                    {language === 'ar' ? `موسيقى ${title}` : `${title} Ambient Score`}
-                  </p>
-                  <div className="mt-2 h-1 bg-[hsl(240_12%_14%)] rounded-full overflow-hidden">
-                    <div className="h-full w-1/3 bg-gradient-to-r from-[hsl(270_55%_48%)] to-[hsl(45_85%_52%)] rounded-full" />
-                  </div>
-                </div>
-                <motion.button
-                  className="w-10 h-10 rounded-full bg-[hsl(45_85%_52%)] flex items-center justify-center flex-shrink-0"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  data-testid="button-play-ambient"
-                >
-                  <Play size={14} fill="hsl(240 15% 4%)" className="text-[hsl(240_15%_4%)] ml-0.5" />
-                </motion.button>
-              </div>
-            </motion.section>
-
-            {/* Reviews */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className={`text-xl font-bold text-[hsl(45_20%_90%)] mb-6 ${isRTL ? 'font-arabic text-right' : 'font-cinematic'}`}>
-                {language === 'ar' ? 'المراجعات' : 'Reviews'}
-              </h2>
-              <div className="space-y-4">
-                {mockReviews.map((review) => (
-                  <div key={review.id} className={`p-4 rounded-xl bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)] ${isRTL ? 'text-right' : ''}`}>
-                    <div className={`flex items-center justify-between mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                      <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[hsl(45_85%_52%)] to-[hsl(270_55%_48%)] flex items-center justify-center">
-                          <span className="text-xs font-bold text-[hsl(240_15%_4%)]">
-                            {(language === 'ar' ? review.nameAr : review.nameEn).charAt(0)}
-                          </span>
+              <div className="space-y-6">
+                {reviewsLoading ? (
+                   [1,2].map(i => <div key={i} className="h-32 bg-primary/5 animate-pulse rounded-3xl" />)
+                ) : reviews && (reviews as any[]).length > 0 ? (
+                  (reviews as any[]).map((review: any) => (
+                    <motion.div 
+                      key={review.id} 
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      className={`p-10 rounded-[3rem] bg-white border border-border shadow-xl shadow-primary/5 relative ${isRTL ? 'text-right' : ''}`}
+                    >
+                      <div className={`flex items-center justify-between mb-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <div className={`flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                            {review.profiles?.avatar_url ? (
+                               <img src={review.profiles.avatar_url} className="w-full h-full object-cover rounded-2xl" alt="" />
+                            ) : (
+                               <span className="text-xl font-black text-primary uppercase">
+                                  {review.profiles?.full_name?.charAt(0) || 'U'}
+                               </span>
+                            )}
+                          </div>
+                          <div>
+                            <span className={`text-primary font-black text-base uppercase tracking-wider block mb-1`}>
+                              {review.profiles?.full_name || 'Anonymous Reader'}
+                            </span>
+                            <p className="text-[11px] font-bold text-primary/50 uppercase tracking-[0.2em]">{isRTL ? 'قارئ موثوق' : 'Verified Proprietor'}</p>
+                          </div>
                         </div>
-                        <span className={`text-[hsl(240_5%_75%)] text-sm font-medium ${isRTL ? 'font-arabic' : ''}`}>
-                          {language === 'ar' ? review.nameAr : review.nameEn}
-                        </span>
+                        <div className="flex items-center gap-1 mt-4 md:mt-0">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star key={s} size={16} fill={s <= review.rating ? 'currentColor' : 'none'} className={s <= review.rating ? 'text-yellow-400' : 'text-primary/10'} />
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} size={12} className={s <= review.rating ? 'fill-[hsl(45_85%_52%)] text-[hsl(45_85%_52%)]' : 'text-[hsl(240_12%_22%)]'} />
-                        ))}
-                      </div>
-                    </div>
-                    <p className={`text-[hsl(240_5%_55%)] text-sm leading-relaxed ${isRTL ? 'font-arabic' : ''}`}>
-                      {language === 'ar' ? review.textAr : review.textEn}
+                      <p className={`text-2xl text-primary/90 font-bold leading-relaxed ${isRTL ? 'font-arabic' : 'font-sans'}`}>
+                        "{review.comment || (isRTL ? 'ترك هذا القارئ تقييماً صامتاً، لكنه يعبر عن الكثير.' : 'The chronicle left this reader breathless, though no words were recorded.')}"
+                      </p>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="py-20 text-center bg-primary/5 rounded-[4rem] border-4 border-dashed border-primary/10">
+                    <p className="text-primary/20 font-black uppercase tracking-wider">
+                       {isRTL ? 'لا توجد تعليقات بعد. كن أول من يكتب تعليقاً!' : 'No comments yet. Be the first to leave a comment!'}
                     </p>
                   </div>
-                ))}
-              </div>
-              <motion.button
-                className="mt-4 w-full py-3 rounded-xl border border-[hsl(240_12%_18%)] text-[hsl(240_5%_60%)] text-sm hover:border-[hsl(45_85%_52%/0.3)] hover:text-[hsl(45_85%_52%)] transition-all duration-200"
-                whileHover={{ scale: 1.01 }}
-                data-testid="button-write-review"
-              >
-                {t.book.writeReview}
-              </motion.button>
-            </motion.section>
-          </div>
-
-          {/* Sticky sidebar */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 space-y-4">
-              <div className="p-5 rounded-2xl bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)]">
-                <div className={`text-2xl font-bold text-gradient-gold font-cinematic mb-1 ${isRTL ? 'text-right' : ''}`}>
-                  {book.price} {language === 'ar' ? 'ر.س' : 'SAR'}
-                </div>
-                {book.originalPrice && (
-                  <div className={`text-[hsl(240_5%_40%)] text-sm line-through mb-3 ${isRTL ? 'text-right' : ''}`}>
-                    {book.originalPrice} {language === 'ar' ? 'ر.س' : 'SAR'}
-                  </div>
                 )}
-                <motion.button
-                  className="w-full py-3 bg-gradient-to-r from-[hsl(45_85%_52%)] to-[hsl(40_90%_48%)] text-[hsl(240_15%_4%)] rounded-xl font-bold mb-3 glow-gold"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  data-testid="sidebar-buy-now"
-                >
-                  {t.book.buyNow}
-                </motion.button>
-                <motion.button
-                  className="w-full py-3 border border-[hsl(240_12%_22%)] text-[hsl(240_5%_70%)] rounded-xl font-medium hover:border-[hsl(45_85%_52%/0.4)] hover:text-[hsl(45_85%_52%)] transition-all"
-                  whileHover={{ scale: 1.02 }}
-                  data-testid="sidebar-read-sample"
-                >
-                  {t.book.readSample}
-                </motion.button>
               </div>
-            </div>
+            </section>
           </div>
         </div>
 
-        {/* Recommendations */}
+        {/* Cinematic Recommendations */}
         {recommended.length > 0 && (
-          <section className="mt-16">
-            <h2 className={`text-2xl font-bold text-[hsl(45_20%_90%)] mb-6 ${isRTL ? 'font-arabic text-right' : 'font-cinematic'}`}>
-              {t.book.recommendedBooks}
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {recommended.map((b, i) => (
+          <section className="mt-40">
+            <div className={`flex items-baseline justify-between mb-16 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <h2 className={`text-4xl md:text-5xl font-black text-primary uppercase tracking-wider ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                {t.book.recommendedBooks}
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-10">
+              {recommended.map((b: any, i: number) => (
                 <BookCard key={b.id} book={b} index={i} />
               ))}
             </div>

@@ -5,14 +5,14 @@ import { Author } from '@/services/mock/authors';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 interface AuthorCardProps {
-  author: Author;
+  author: Record<string, any>;
   index?: number;
 }
 
 export function AuthorCard({ author, index = 0 }: AuthorCardProps) {
   const { t, isRTL, language } = useLanguage();
-  const name = language === 'ar' ? author.nameAr : author.nameEn;
-  const bio = language === 'ar' ? author.bioAr : author.bioEn;
+  const name = language === 'ar' ? (author.name_ar || author.nameAr) : (author.name_en || author.nameEn);
+  const bio = language === 'ar' ? (author.bio_ar || author.bioAr) : (author.bio_en || author.bioEn);
 
   return (
     <motion.div
@@ -24,11 +24,11 @@ export function AuthorCard({ author, index = 0 }: AuthorCardProps) {
       data-testid={`card-author-${author.id}`}
     >
       <Link href={`/authors/${author.id}`}>
-        <div className="cursor-pointer relative rounded-2xl overflow-hidden bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)] p-6 hover:border-[hsl(45_85%_52%/0.3)] hover:shadow-[0_8px_30px_hsl(45_85%_52%/0.1)] transition-all duration-300">
+        <div className="cursor-pointer relative rounded-2xl overflow-hidden bg-card border border-border p-6 hover:border-maroon/30 hover:shadow-[0_8px_30px_hsl(342_63%_34%/0.1)] transition-all duration-300">
           <div className={`flex gap-4 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <div className="relative flex-shrink-0">
               <img
-                src={author.imageUrl}
+                src={author.photo_url || author.imageUrl || 'https://images.unsplash.com/photo-1544717302-de2939b7ef71?auto=format&fit=crop&w=400&q=80'}
                 alt={name}
                 className="w-16 h-16 rounded-full object-cover ring-2 ring-[hsl(45_85%_52%/0.3)]"
                 loading="lazy"
@@ -38,12 +38,12 @@ export function AuthorCard({ author, index = 0 }: AuthorCardProps) {
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className={`font-bold text-[hsl(45_20%_90%)] text-base mb-0.5 ${isRTL ? 'font-arabic text-right' : ''}`}>
+              <h3 className={`font-bold text-maroon text-base mb-0.5 ${isRTL ? 'font-arabic text-right' : ''}`}>
                 {name}
               </h3>
-              <p className="text-[hsl(240_5%_50%)] text-xs">{author.nationality}</p>
+              <p className="text-maroon/60 text-xs">{author.nationality}</p>
               <div className={`flex items-center gap-1 mt-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                {author.genres.map((g) => (
+                {(author.genres || []).map((g: string) => (
                   <span key={g} className="px-1.5 py-0.5 bg-[hsl(270_45%_12%)] text-[hsl(270_55%_70%)] text-xs rounded-md">
                     {g}
                   </span>
@@ -52,22 +52,22 @@ export function AuthorCard({ author, index = 0 }: AuthorCardProps) {
             </div>
           </div>
 
-          <p className={`text-[hsl(240_5%_50%)] text-xs line-clamp-2 mb-4 ${isRTL ? 'font-arabic text-right' : ''}`}>
+          <p className={`text-maroon/70 text-xs line-clamp-2 mb-4 ${isRTL ? 'font-arabic text-right' : ''}`}>
             {bio}
           </p>
 
           <div className={`flex items-center gap-4 text-xs ${isRTL ? 'flex-row-reverse' : ''}`}>
             <div className={`flex items-center gap-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              <BookOpen size={12} className="text-[hsl(45_85%_52%)]" />
-              <span className="text-[hsl(240_5%_60%)]">{author.bookCount} {t.authors.books}</span>
+              <BookOpen size={12} className="text-maroon" />
+              <span className="text-maroon/60">{author.bookCount || 0} {t.authors.books}</span>
             </div>
             <div className={`flex items-center gap-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              <Users size={12} className="text-[hsl(270_55%_65%)]" />
-              <span className="text-[hsl(240_5%_60%)]">{(author.readerCount / 1000).toFixed(0)}k {t.authors.readers}</span>
+              <Users size={12} className="text-maroon/80" />
+              <span className="text-maroon/60">{(author.readerCount ? author.readerCount / 1000 : 0).toFixed(0)}k {t.authors.readers}</span>
             </div>
             <div className={`flex items-center gap-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              <Star size={12} className="text-[hsl(45_85%_52%)]" fill="hsl(45 85% 52%)" />
-              <span className="text-[hsl(240_5%_60%)]">{author.rating}</span>
+              <Star size={12} className="text-gold" fill="currentColor" />
+              <span className="text-maroon/60">{author.rating || 'N/A'}</span>
             </div>
           </div>
         </div>

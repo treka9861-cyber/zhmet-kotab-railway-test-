@@ -40,14 +40,14 @@ function Countdown({ endDate }: { endDate: string }) {
       {units.map(({ value, label }, i) => (
         <div key={label} className="flex items-center gap-2">
           <div className="text-center">
-            <div className="w-10 h-10 bg-[hsl(240_12%_10%)] border border-[hsl(240_12%_18%)] rounded-lg flex items-center justify-center">
-              <span className="text-[hsl(45_85%_52%)] font-bold text-sm font-mono">
+            <div className="w-10 h-10 bg-maroon/5 border border-maroon/10 rounded-lg flex items-center justify-center">
+              <span className="text-maroon font-bold text-sm font-mono">
                 {String(value).padStart(2, '0')}
               </span>
             </div>
-            <p className="text-[hsl(240_5%_40%)] text-xs mt-1">{label}</p>
+            <p className="text-maroon/40 text-xs mt-1">{label}</p>
           </div>
-          {i < 3 && <span className="text-[hsl(45_85%_52%)] font-bold mb-4">:</span>}
+          {i < 3 && <span className="text-maroon font-bold mb-4">:</span>}
         </div>
       ))}
     </div>
@@ -87,7 +87,7 @@ export function OffersPage() {
             return (
               <motion.div
                 key={offer.id}
-                className="relative rounded-2xl overflow-hidden border border-[hsl(240_12%_16%)] hover:border-[hsl(45_85%_52%/0.25)] transition-all duration-300"
+                className="relative rounded-2xl overflow-hidden border border-border hover:border-maroon/25 transition-all duration-300 shadow-sm"
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -101,7 +101,7 @@ export function OffersPage() {
                     alt=""
                     className="absolute inset-0 w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[hsl(240_15%_4%/0.95)] via-[hsl(240_15%_4%/0.7)] to-[hsl(240_15%_4%/0.3)]" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
 
                   <div className={`absolute inset-0 flex flex-col justify-center p-6 md:p-8 ${isRTL ? 'text-right items-end' : ''}`}>
                     <div className={`flex items-center gap-2 mb-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -116,10 +116,10 @@ export function OffersPage() {
                         -{offer.discountPercent}%
                       </span>
                     </div>
-                    <h3 className={`text-xl md:text-2xl font-bold text-white mb-2 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                    <h3 className={`text-xl md:text-2xl font-bold text-maroon mb-2 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
                       {language === 'ar' ? offer.titleAr : offer.titleEn}
                     </h3>
-                    <p className={`text-[hsl(240_5%_60%)] text-sm mb-4 max-w-lg ${isRTL ? 'font-arabic' : ''}`}>
+                    <p className={`text-maroon/70 text-sm mb-4 max-w-lg ${isRTL ? 'font-arabic' : ''}`}>
                       {language === 'ar' ? offer.descriptionAr : offer.descriptionEn}
                     </p>
                     <div className={`flex flex-wrap items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -133,14 +133,14 @@ export function OffersPage() {
                 </div>
 
                 {/* Content */}
-                <div className="p-6 bg-[hsl(240_14%_7%)]">
+                <div className="p-6 bg-card">
                   <div className={`flex flex-wrap items-center justify-between gap-4 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     {offer.code && (
                       <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <span className={`text-[hsl(240_5%_55%)] text-sm ${isRTL ? 'font-arabic' : ''}`}>
+                        <span className={`text-maroon/60 text-sm ${isRTL ? 'font-arabic' : ''}`}>
                           {language === 'ar' ? 'كود الخصم:' : 'Promo Code:'}
                         </span>
-                        <span className="px-3 py-1.5 bg-[hsl(240_12%_10%)] border border-[hsl(240_12%_22%)] text-[hsl(45_85%_52%)] text-sm font-mono rounded-lg tracking-widest">
+                        <span className="px-3 py-1.5 bg-background border border-border text-maroon text-sm font-mono rounded-lg tracking-wider shadow-sm">
                           {offer.code}
                         </span>
                       </div>

@@ -7,520 +7,384 @@ import { WorldCard } from '@/components/WorldCard';
 import { AuthorCard } from '@/components/AuthorCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { getFeaturedBooks, getNewBooks, books } from '@/services/mock/books';
-import { worlds } from '@/services/mock/worlds';
-import { authors } from '@/services/mock/authors';
-import { offers } from '@/services/mock/offers';
+import { useBooks, useAuthors, useWorlds } from '@/services/supabase.hooks';
+import { SEO } from '@/components/SEO';
 
 function HeroSection() {
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const y = useTransform(scrollYProgress, [0, 1], [0, 100]);
-  const opacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+  const y = useTransform(scrollYProgress, [0, 1], [0, 200]);
+  const scale = useTransform(scrollYProgress, [0, 1], [1, 0.9]);
+  const opacityHero = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
-  const featuredBook = getFeaturedBooks()[0];
+  const { data: featuredData } = useBooks({ status: undefined });
+  const featuredBooks = (featuredData ?? []).slice(0, 5);
   const [currentFeaturedIndex, setCurrentFeaturedIndex] = useState(0);
-  const featuredBooks = getFeaturedBooks();
 
   useEffect(() => {
+    if (featuredBooks.length === 0) return;
     const timer = setInterval(() => {
       setCurrentFeaturedIndex((i) => (i + 1) % featuredBooks.length);
-    }, 5000);
+    }, 7000);
     return () => clearInterval(timer);
   }, [featuredBooks.length]);
 
-  const currentBook = featuredBooks[currentFeaturedIndex];
+  const currentBook = featuredBooks.length > 0 ? featuredBooks[currentFeaturedIndex] : null;
 
   return (
     <section
       ref={heroRef}
-      className="relative min-h-screen flex items-center overflow-hidden"
+      className="relative min-h-screen flex items-center pt-20 overflow-hidden bg-[#FDFBF7]"
       data-testid="hero-section"
     >
-      {/* Animated Background */}
-      <motion.div className="absolute inset-0" style={{ y, opacity }}>
-        <AnimatePresence mode="sync">
-          <motion.div
-            key={currentBook.id}
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5 }}
-          >
-            <img
-              src={currentBook.coverUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover scale-105 blur-[2px] opacity-20"
+      {/* Cinematic Background Elements */}
+      <motion.div className="absolute inset-0 z-0" style={{ opacity: opacityHero, scale, y }}>
+        {/* Animated Light Blobs */}
+        <motion.div
+           animate={{ 
+             x: [0, 100, 0], 
+             y: [0, -50, 0],
+             scale: [1, 1.2, 1]
+           }}
+           transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+           className="absolute -top-[10%] -right-[10%] w-[60%] h-[60%] bg-accent/10 blur-[120px] rounded-full"
+        />
+        <motion.div
+           animate={{ 
+             x: [0, -100, 0], 
+             y: [0, 50, 0],
+             scale: [1, 1.3, 1]
+           }}
+           transition={{ duration: 25, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+           className="absolute -bottom-[20%] -left-[10%] w-[50%] h-[50%] bg-primary/5 blur-[120px] rounded-full"
+        />
+
+        {/* Fine Grain Texture */}
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')] opacity-30 mix-blend-multiply pointer-events-none" />
+        
+        {/* Floating Particles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-1 h-1 rounded-full bg-accent/30"
+              initial={{ 
+                x: Math.random() * 100 + "%", 
+                y: Math.random() * 100 + "%",
+                opacity: Math.random() * 0.5
+              }}
+              animate={{
+                y: [null, "-100vh"],
+                opacity: [null, 0]
+              }}
+              transition={{
+                duration: 10 + Math.random() * 20,
+                repeat: Infinity,
+                ease: "linear",
+                delay: Math.random() * 10
+              }}
             />
-          </motion.div>
-        </AnimatePresence>
-        <div className="absolute inset-0 bg-gradient-to-b from-[hsl(240_15%_4%/0.6)] via-[hsl(240_15%_4%/0.7)] to-[hsl(240_15%_4%)]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(240_15%_4%)] via-transparent to-transparent" />
-
-        {/* Glowing orbs */}
-        <motion.div
-          className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, hsl(270 55% 48% / 0.12) 0%, transparent 70%)',
-            filter: 'blur(40px)',
-          }}
-          animate={{ scale: [1, 1.1, 1], opacity: [0.6, 0.9, 0.6] }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute bottom-1/4 left-1/3 w-64 h-64 rounded-full pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, hsl(45 85% 52% / 0.08) 0%, transparent 70%)',
-            filter: 'blur(40px)',
-          }}
-          animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.7, 0.4] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-        />
-
-        {/* Floating particles */}
-        {Array.from({ length: 20 }).map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 rounded-full bg-[hsl(45_85%_52%/0.4)]"
-            style={{
-              left: `${10 + (i * 4.5)}%`,
-              top: `${20 + (i * 3)}%`,
-            }}
-            animate={{
-              y: [0, -30, 0],
-              opacity: [0, 0.6, 0],
-            }}
-            transition={{
-              duration: 3 + (i % 4),
-              repeat: Infinity,
-              delay: i * 0.3,
-              ease: 'easeInOut',
-            }}
-          />
-        ))}
+          ))}
+        </div>
       </motion.div>
 
-      {/* Hero Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
-        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${isRTL ? 'lg:grid-flow-col-dense' : ''}`}>
-          {/* Text */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-16 items-center ${isRTL ? 'lg:grid-flow-col-dense' : ''}`}>
+          {/* Emotional Content */}
           <motion.div
             className={isRTL ? 'order-2 text-right' : 'order-1 text-left'}
-            initial={{ opacity: 0, x: isRTL ? 40 : -40 }}
+            initial={{ opacity: 0, x: isRTL ? 60 : -60 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
           >
             <motion.div
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(45_85%_52%/0.1)] border border-[hsl(45_85%_52%/0.25)] text-[hsl(45_85%_52%)] text-sm font-medium mb-6 ${isRTL ? 'flex-row-reverse' : ''}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: 0.3 }}
+              className={`flex items-center gap-3 mb-8 ${isRTL ? 'flex-row-reverse' : ''}`}
             >
-              <Sparkles size={14} />
-              {t.hero.badge}
+              <div className="h-px w-12 bg-accent/40" />
+              <span className="text-accent text-xs font-bold uppercase tracking-[0.3em]">
+                {isRTL ? 'بوابة نحو الخيال' : 'Gateway to Imagination'}
+              </span>
             </motion.div>
 
             <motion.h1
-              className={`text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight mb-6 ${
+              className={`text-6xl sm:text-7xl lg:text-8xl font-black leading-[1] mb-8 text-primary selection:bg-accent/30 ${
                 isRTL ? 'font-arabic' : 'font-cinematic'
               }`}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: 0.4, duration: 1 }}
             >
-              <span className="text-[hsl(45_20%_90%)]">{t.hero.title}</span>
-              <br />
-              <span className="text-gradient-gold">{t.hero.titleAccent}</span>
+              <span className="block">{isRTL ? 'خلف كل صفحة' : 'Beyond every'}</span>
+              <span className="block text-accent">
+                {isRTL ? 'عالم ينتظرك' : 'world awaits'}
+              </span>
             </motion.h1>
 
             <motion.p
-              className={`text-[hsl(240_5%_60%)] text-lg leading-relaxed mb-8 max-w-xl ${isRTL ? 'font-arabic' : ''}`}
-              initial={{ opacity: 0, y: 20 }}
+              className={`text-primary/60 text-xl md:text-2xl leading-relaxed mb-12 max-w-xl ${isRTL ? 'font-arabic ml-auto' : ''}`}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.5, duration: 1 }}
             >
-              {t.hero.subtitle}
+              {isRTL 
+                ? 'نحن لا ننشر الكتب فحسب، نحن نبني جسوراً بين عوالمك وبين الحقيقة.' 
+                : 'We don\'t just publish books; we build bridges between your reality and infinite worlds.'}
             </motion.p>
 
             <motion.div
-              className={`flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}
-              initial={{ opacity: 0, y: 20 }}
+              className={`flex flex-wrap items-center gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.6, duration: 1 }}
             >
               <Link href="/store">
                 <motion.span
-                  className="inline-flex items-center gap-2 px-7 py-3.5 bg-gradient-to-r from-[hsl(45_85%_52%)] to-[hsl(40_90%_48%)] text-[hsl(240_15%_4%)] rounded-xl font-bold text-base cursor-pointer glow-gold"
-                  whileHover={{ scale: 1.04, boxShadow: '0 0 40px hsl(45 85% 52% / 0.5)' }}
-                  whileTap={{ scale: 0.97 }}
-                  data-testid="hero-cta"
+                  className="group relative inline-flex items-center gap-3 px-10 py-5 bg-primary text-primary-foreground rounded-2xl font-bold text-lg overflow-hidden transition-all shadow-2xl shadow-primary/20"
+                  whileHover={{ y: -5 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  {isRTL ? <BookOpen size={18} /> : null}
-                  {t.hero.cta}
-                  {!isRTL ? <BookOpen size={18} /> : null}
+                  <div className="absolute inset-0 bg-accent scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                  <span className="relative group-hover:text-primary transition-colors duration-300">
+                    {t.hero.cta}
+                  </span>
+                  <BookOpen size={20} className="relative group-hover:text-primary transition-colors duration-300" />
                 </motion.span>
               </Link>
+              
               <motion.button
-                className={`inline-flex items-center gap-3 px-6 py-3.5 rounded-xl border border-[hsl(240_12%_22%)] text-[hsl(240_5%_80%)] font-medium text-base hover:border-[hsl(45_85%_52%/0.4)] hover:text-[hsl(45_85%_52%)] transition-all duration-200 ${isRTL ? 'flex-row-reverse' : ''}`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
-                data-testid="hero-trailer-cta"
+                className="group flex items-center gap-4 text-primary font-bold text-lg hover:text-accent transition-colors px-4 py-2"
+                whileHover={{ x: isRTL ? -5 : 5 }}
               >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-[hsl(240_12%_12%)] border border-[hsl(240_12%_22%)]">
-                  <Play size={14} fill="currentColor" className={isRTL ? '' : 'ml-0.5'} />
+                <div className="w-12 h-12 rounded-full border border-primary/20 flex items-center justify-center group-hover:border-accent transition-colors">
+                  <Play size={18} fill="currentColor" />
                 </div>
-                {t.hero.ctaSecondary}
+                <span>{t.hero.ctaSecondary}</span>
               </motion.button>
-            </motion.div>
-
-            {/* Stats */}
-            <motion.div
-              className={`flex items-center gap-8 mt-10 pt-8 border-t border-[hsl(240_12%_14%)] ${isRTL ? 'flex-row-reverse' : ''}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-            >
-              {[
-                { value: '500+', labelAr: 'كتاب', labelEn: 'Books' },
-                { value: '1M+', labelAr: 'قارئ', labelEn: 'Readers' },
-                { value: '50+', labelAr: 'كاتب', labelEn: 'Authors' },
-              ].map((stat) => (
-                <div key={stat.value} className={isRTL ? 'text-right' : 'text-left'}>
-                  <div className="text-2xl font-bold text-gradient-gold font-cinematic">{stat.value}</div>
-                  <div className={`text-[hsl(240_5%_48%)] text-sm ${isRTL ? 'font-arabic' : ''}`}>
-                    {isRTL ? stat.labelAr : stat.labelEn}
-                  </div>
-                </div>
-              ))}
             </motion.div>
           </motion.div>
 
-          {/* Featured Book Cover */}
+          {/* Immersive Book Display */}
           <motion.div
-            className={`relative ${isRTL ? 'order-1' : 'order-2'}`}
-            initial={{ opacity: 0, x: isRTL ? -40 : 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            className={`relative hidden lg:block ${isRTL ? 'order-1' : 'order-2'}`}
+            initial={{ opacity: 0, scale: 0.8, rotateY: isRTL ? -20 : 20 }}
+            animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="relative max-w-xs mx-auto lg:max-w-sm">
-              {/* Glowing backdrop */}
-              <div
-                className="absolute inset-0 rounded-3xl"
-                style={{
-                  background: 'radial-gradient(ellipse at center, hsl(45 85% 52% / 0.15) 0%, transparent 70%)',
-                  filter: 'blur(30px)',
-                  transform: 'scale(1.2)',
-                }}
-              />
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentBook.id}
-                  className="relative"
-                  initial={{ opacity: 0, scale: 0.92, rotateY: 10 }}
-                  animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-                  exit={{ opacity: 0, scale: 0.92, rotateY: -10 }}
-                  transition={{ duration: 0.6 }}
-                >
-                  <img
-                    src={currentBook.coverUrl}
-                    alt={currentBook.titleAr}
-                    className="w-full aspect-[2/3] object-cover rounded-2xl shadow-[0_30px_80px_hsl(45_85%_52%/0.2)]"
-                  />
-                  {/* Book shine */}
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none" />
-                </motion.div>
-              </AnimatePresence>
+            {currentBook && (
+              <div className="relative max-w-md mx-auto">
+                <div className="absolute -inset-4 bg-accent/20 blur-[60px] rounded-full animate-pulse" />
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentBook.id}
+                    className="relative group perspective-2000"
+                    initial={{ opacity: 0, rotateY: 30, x: 100 }}
+                    animate={{ opacity: 1, rotateY: 0, x: 0 }}
+                    exit={{ opacity: 0, rotateY: -30, x: -100 }}
+                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <img
+                      src={currentBook.cover_url || ''}
+                      alt={language === 'ar' ? currentBook.title_ar : currentBook.title_en}
+                      className="w-full aspect-[2/3] object-cover rounded-[3rem] shadow-[0_60px_100px_-20px_rgba(139,29,61,0.35)] ring-1 ring-white/50"
+                    />
+                    <div className="absolute inset-0 rounded-[3rem] bg-gradient-to-tr from-white/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                  </motion.div>
+                </AnimatePresence>
 
-              {/* Navigation dots */}
-              <div className="flex items-center justify-center gap-2 mt-6">
-                {featuredBooks.slice(0, 5).map((b, i) => (
-                  <button
-                    key={b.id}
-                    onClick={() => setCurrentFeaturedIndex(i)}
-                    className={`transition-all duration-300 rounded-full ${
-                      i === currentFeaturedIndex
-                        ? 'w-6 h-2 bg-[hsl(45_85%_52%)]'
-                        : 'w-2 h-2 bg-[hsl(240_12%_22%)] hover:bg-[hsl(240_12%_32%)]'
-                    }`}
-                    data-testid={`hero-dot-${i}`}
-                  />
-                ))}
+                {/* Dynamic Book Info Tag */}
+                <motion.div
+                  key={`tag-${currentBook.id}`}
+                  className={`absolute -bottom-6 ${isRTL ? '-right-6' : '-left-6'} bg-white/80 backdrop-blur-xl border border-white/50 p-6 rounded-[2rem] shadow-2xl max-w-[200px]`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <span className="text-xs font-black uppercase tracking-wider text-accent mb-1 block">Featured</span>
+                  <h4 className={`font-bold text-primary line-clamp-1 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+                    {language === 'ar' ? currentBook.title_ar : currentBook.title_en}
+                  </h4>
+                </motion.div>
               </div>
-            </div>
+            )}
           </motion.div>
         </div>
       </div>
+    </section>
+  );
+}
 
-      {/* Scroll indicator */}
+function QuoteSection() {
+  const { isRTL } = useLanguage();
+  return (
+    <section className="py-32 relative overflow-hidden bg-white">
+      <div className="max-w-4xl mx-auto px-4 text-center">
+        <motion.div
+           initial={{ opacity: 0 }}
+           whileInView={{ opacity: 1 }}
+           viewport={{ once: true }}
+           transition={{ duration: 2 }}
+        >
+          <Sparkles className="mx-auto text-accent/40 mb-10" size={32} />
+          <h2 className={`text-3xl md:text-5xl font-serif italic text-primary/80 leading-tight mb-8 ${isRTL ? 'font-arabic' : ''}`}>
+            {isRTL 
+              ? '“القصص لا تنتهي أبداً، إنها تنتظر فقط الشخص المناسب ليفتح الصفحة.”' 
+              : '“Stories never truly end; they only wait for the right person to flip the page.”'}
+          </h2>
+          <div className="h-0.5 w-20 bg-accent/20 mx-auto" />
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+function SectionHeading({ title, subtitle, viewAll }: { title: string; subtitle?: string; viewAll?: string }) {
+  const { isRTL } = useLanguage();
+  return (
+    <div className={`mb-16 ${isRTL ? 'text-right' : 'text-left'}`}>
       <motion.div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        animate={{ y: [0, 8, 0] }}
-        transition={{ duration: 2, repeat: Infinity }}
+        initial={{ opacity: 0, x: isRTL ? 30 : -30 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
       >
-        <div className="w-px h-8 bg-gradient-to-b from-[hsl(45_85%_52%/0.6)] to-transparent" />
+        <h2 className={`text-4xl md:text-5xl font-bold text-primary mb-4 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+          {title}
+        </h2>
+        {subtitle && (
+          <p className={`text-primary/50 text-lg max-w-xl ${isRTL ? 'mr-0 ml-auto' : ''}`}>
+            {subtitle}
+          </p>
+        )}
       </motion.div>
-    </section>
-  );
-}
-
-function CategoryBar() {
-  const { t, isRTL, language } = useLanguage();
-  const categories = [
-    { id: 'fantasy', icon: '✨' },
-    { id: 'scifi', icon: '🔮' },
-    { id: 'mystery', icon: '🔍' },
-    { id: 'romance', icon: '❤️' },
-    { id: 'historical', icon: '📜' },
-    { id: 'horror', icon: '🌑' },
-    { id: 'adventure', icon: '⚔️' },
-    { id: 'literary', icon: '📖' },
-  ] as const;
-
-  return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SectionHeader title={t.sections.categories} />
-      <div className={`flex gap-3 overflow-x-auto scrollbar-hide pb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-        {categories.map((cat, i) => (
-          <motion.button
-            key={cat.id}
-            className="flex-shrink-0 flex flex-col items-center gap-2 px-5 py-3 rounded-xl bg-[hsl(240_14%_7%)] border border-[hsl(240_12%_14%)] hover:border-[hsl(45_85%_52%/0.4)] hover:bg-[hsl(45_85%_52%/0.05)] transition-all duration-200 group"
-            whileHover={{ y: -2, scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            data-testid={`category-${cat.id}`}
-          >
-            <span className="text-xl">{cat.icon}</span>
-            <span className={`text-xs font-medium text-[hsl(240_5%_60%)] group-hover:text-[hsl(45_85%_52%)] transition-colors whitespace-nowrap ${isRTL ? 'font-arabic' : ''}`}>
-              {t.categories[cat.id]}
-            </span>
-          </motion.button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function OffersBar() {
-  const { t, isRTL, language } = useLanguage();
-
-  return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {offers.slice(0, 2).map((offer, i) => (
-          <motion.div
-            key={offer.id}
-            className="relative rounded-2xl overflow-hidden border border-[hsl(240_12%_16%)] hover:border-[hsl(45_85%_52%/0.3)] transition-all duration-300 cursor-pointer group"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            whileHover={{ scale: 1.01 }}
-            data-testid={`offer-card-${offer.id}`}
-          >
-            <img
-              src={offer.bannerUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover opacity-30 transition-opacity duration-300 group-hover:opacity-40"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[hsl(240_15%_4%/0.95)] to-[hsl(240_15%_4%/0.5)]" />
-            <div className={`relative p-6 ${isRTL ? 'text-right' : 'text-left'}`}>
-              <span className="inline-block px-2.5 py-1 bg-[hsl(45_85%_52%/0.15)] border border-[hsl(45_85%_52%/0.3)] text-[hsl(45_85%_52%)] text-xs font-medium rounded-full mb-3">
-                -{offer.discountPercent}% {language === 'ar' ? 'خصم' : t.store.off}
-              </span>
-              <h3 className={`text-base font-bold text-white mb-1 ${isRTL ? 'font-arabic' : ''}`}>
-                {language === 'ar' ? offer.titleAr : offer.titleEn}
-              </h3>
-              <p className={`text-[hsl(240_5%_55%)] text-xs mb-4 ${isRTL ? 'font-arabic' : ''}`}>
-                {language === 'ar' ? offer.descriptionAr : offer.descriptionEn}
-              </p>
-              {offer.code && (
-                <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse justify-end' : ''}`}>
-                  <span className="px-3 py-1 bg-[hsl(240_14%_10%)] border border-[hsl(240_12%_22%)] text-[hsl(45_85%_52%)] text-xs font-mono rounded-lg">
-                    {offer.code}
-                  </span>
-                  <Link href="/offers">
-                    <span className="text-[hsl(45_85%_52%)] text-xs font-medium cursor-pointer hover:underline">
-                      {t.offers.claimOffer}
-                    </span>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TrailersSection() {
-  const { t, isRTL, language } = useLanguage();
-
-  return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <SectionHeader
-        title={t.sections.trailers}
-        viewAllHref="/media"
-      />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {worlds.slice(0, 3).map((world, i) => (
-          <motion.div
-            key={world.id}
-            className="relative rounded-2xl overflow-hidden aspect-video border border-[hsl(240_12%_16%)] hover:border-[hsl(45_85%_52%/0.3)] cursor-pointer group transition-all duration-300"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            whileHover={{ scale: 1.02 }}
-          >
-            <img
-              src={world.bannerUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-[hsl(240_15%_4%/0.6)] group-hover:bg-[hsl(240_15%_4%/0.5)] transition-colors" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <motion.div
-                className="w-14 h-14 rounded-full bg-[hsl(45_85%_52%/0.9)] flex items-center justify-center shadow-[0_0_30px_hsl(45_85%_52%/0.5)]"
-                whileHover={{ scale: 1.1 }}
-              >
-                <Play size={20} fill="hsl(240 15% 4%)" className="text-[hsl(240_15%_4%)] ml-1" />
-              </motion.div>
-            </div>
-            <div className={`absolute bottom-3 ${isRTL ? 'right-3 text-right' : 'left-3 text-left'}`}>
-              <p className={`text-white text-sm font-semibold ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
-                {language === 'ar' ? world.nameAr : world.nameEn}
-              </p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </section>
+    </div>
   );
 }
 
 export function Homepage() {
   const { t, isRTL } = useLanguage();
-  const [isLoading, setIsLoading] = useState(true);
-  const featuredBooks = getFeaturedBooks();
-  const newBooks = getNewBooks();
+  const { data: booksData } = useBooks({ status: undefined });
+  const { data: authorsData } = useAuthors();
+  const { data: worldsData } = useWorlds();
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
-  }, []);
+  // Pick some books for featured segment
+  const featuredBooks = (booksData ?? []).slice(0, 5);
+  const newBooks = (booksData ?? []).filter((b) => b.is_new);
 
   return (
-    <div className="min-h-screen bg-[hsl(240_15%_4%)]">
+    <div className="min-h-screen bg-background selection:bg-accent/30 selection:text-primary">
+      <SEO
+        title={isRTL ? 'بيت الكتب والروايات العربية' : 'Home — Arabic Books & Novels'}
+        description={isRTL
+          ? 'اكتشف أجمل الروايات والكتب العربية والإنجليزية في متجر زحمة كتاب. عوالم قصصية لا تُنسى تنتظرك.'
+          : 'Discover the finest Arabic and English novels at Dar Zahmet Kotab. Immersive literary worlds await you.'}
+        type="website"
+      />
       <HeroSection />
 
-      <CategoryBar />
+      <QuoteSection />
 
-      {/* Featured Books */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <SectionHeader
-          title={t.sections.featuredBooks}
-          viewAllHref="/store"
+      {/* Narrative Worlds */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+        <SectionHeading 
+          title={t.sections.exploreWorlds} 
+          subtitle={isRTL 
+            ? 'سلاسل متكاملة تصحبك في رحلة لا تنسى' 
+            : 'Explore narrative universes designed for deep immersion.'}
         />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {featuredBooks.map((book, i) => (
-            <BookCard key={book.id} book={book} index={i} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          {(worldsData ?? []).slice(0, 3).map((world, i) => (
+            <motion.div
+              key={world.id}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.2, duration: 1 }}
+            >
+              <WorldCard world={world as any} index={i} />
+            </motion.div>
           ))}
         </div>
       </section>
 
-      {/* Worlds Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <SectionHeader
-          title={t.sections.exploreWorlds}
-          subtitle={isRTL
-            ? 'ادخل إلى أكوان قصصية متكاملة تمتد عبر سلاسل من الكتب'
-            : 'Enter complete narrative universes spanning multiple books'}
-          viewAllHref="/worlds"
+      {/* Featured Collection */}
+      <section className="bg-primary/2 py-32 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <SectionHeading 
+            title={t.sections.featuredBooks} 
+            subtitle={isRTL ? 'مختاراتنا لك هذا الشهر' : 'Our handpicked masterpieces for your library.'}
+          />
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+            {featuredBooks.map((book, i) => (
+              <motion.div
+                key={book.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.8 }}
+              >
+                <BookCard book={book} index={i} />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Authors - The Architects */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
+        <SectionHeading 
+          title={t.sections.authorSpotlight} 
+          subtitle={isRTL ? 'تعرف على العقول المبدعة خلف حكايتنا' : 'Meet the brilliant architects of our stories.'}
         />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {worlds.map((world, i) => (
-            <WorldCard key={world.id} world={world} index={i} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          {(authorsData ?? []).slice(0, 3).map((author, i) => (
+            <motion.div
+              key={author.id}
+              initial={{ opacity: 0, x: isRTL ? 40 : -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.2, duration: 0.8 }}
+            >
+              <AuthorCard author={author as any} index={i} />
+            </motion.div>
           ))}
         </div>
       </section>
 
-      <OffersBar />
-
-      {/* Latest Releases */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <SectionHeader
-          title={t.sections.latestReleases}
-          viewAllHref="/store"
-        />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {newBooks.slice(0, 5).map((book, i) => (
-            <BookCard key={book.id} book={book} index={i} />
-          ))}
-        </div>
-      </section>
-
-      <TrailersSection />
-
-      {/* Authors Spotlight */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <SectionHeader
-          title={t.sections.authorSpotlight}
-          viewAllHref="/authors"
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {authors.slice(0, 6).map((author, i) => (
-            <AuthorCard key={author.id} author={author} index={i} />
-          ))}
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      {/* Emotional Final Chapter */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32 pb-48">
         <motion.div
-          className="relative rounded-3xl overflow-hidden text-center py-20 px-6"
-          initial={{ opacity: 0, y: 40 }}
+          className="relative rounded-[4rem] overflow-hidden bg-primary p-16 md:p-32 text-center shadow-[0_50px_100px_-30px_rgba(139,29,61,0.5)]"
+          initial={{ opacity: 0, y: 100 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-[hsl(270_50%_10%)] via-[hsl(240_14%_7%)] to-[hsl(240_15%_4%)]" />
-          <div className="absolute inset-0 opacity-40">
-            <div
-              className="absolute inset-0"
-              style={{ background: 'radial-gradient(ellipse at center, hsl(45 85% 52% / 0.1) 0%, transparent 60%)' }}
-            />
-          </div>
-          <div className="relative z-10">
-            <motion.div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[hsl(45_85%_52%/0.1)] border border-[hsl(45_85%_52%/0.25)] text-[hsl(45_85%_52%)] text-sm font-medium mb-6"
-              animate={{ scale: [1, 1.02, 1] }}
-              transition={{ duration: 3, repeat: Infinity }}
-            >
-              <Globe size={14} />
-              {isRTL ? 'انضم إلى مجتمع القرّاء' : 'Join the reading community'}
-            </motion.div>
-            <h2 className={`text-3xl md:text-5xl font-bold text-white mb-4 ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
-              {isRTL ? 'ابدأ رحلتك القصصية اليوم' : 'Begin Your Story Journey Today'}
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1920&q=80')] opacity-10 bg-cover bg-center mix-blend-overlay" />
+          <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/95 to-primary/80" />
+          
+          <div className="relative z-10 max-w-3xl mx-auto">
+            <Sparkles className="mx-auto text-accent mb-8" size={40} />
+            <h2 className={`text-4xl md:text-7xl font-bold text-white mb-10 leading-tight ${isRTL ? 'font-arabic' : 'font-cinematic'}`}>
+              {isRTL ? 'ابدأ حكايتك الخاصة الآن' : 'Your next great adventure begins here'}
             </h2>
-            <p className={`text-[hsl(240_5%_60%)] text-lg mb-8 max-w-xl mx-auto ${isRTL ? 'font-arabic' : ''}`}>
-              {isRTL
-                ? 'انضم إلى أكثر من مليون قارئ ويكتشفون عوالم جديدة كل يوم'
-                : 'Join over a million readers discovering new worlds every day'}
-            </p>
-            <Link href="/store">
-              <motion.span
-                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[hsl(45_85%_52%)] to-[hsl(40_90%_48%)] text-[hsl(240_15%_4%)] rounded-xl font-bold text-lg cursor-pointer glow-gold"
-                whileHover={{ scale: 1.05, boxShadow: '0 0 60px hsl(45 85% 52% / 0.5)' }}
-                whileTap={{ scale: 0.97 }}
-                data-testid="footer-cta"
+            <div className={`flex flex-col sm:flex-row gap-6 justify-center ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <motion.button 
+                className="px-12 py-6 bg-accent text-primary font-black rounded-3xl shadow-2xl hover:bg-white transition-all hover:scale-105 active:scale-95 leading-none"
+                whileHover={{ scale: 1.05 }}
               >
-                {isRTL ? 'اكتشف المكتبة' : 'Explore the Library'}
-              </motion.span>
-            </Link>
+                {t.nav.signUp}
+              </motion.button>
+              <motion.button 
+                className="px-12 py-6 bg-white/10 border border-white/20 text-white font-black rounded-3xl backdrop-blur-xl hover:bg-white hover:text-primary transition-all leading-none"
+                whileHover={{ scale: 1.05 }}
+              >
+                {t.footer.contact}
+              </motion.button>
+            </div>
           </div>
         </motion.div>
       </section>
