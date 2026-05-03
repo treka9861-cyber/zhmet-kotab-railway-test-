@@ -3,7 +3,6 @@
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
   "framework": "vite",
-  "rootDirectory": "artifacts/clickers",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
