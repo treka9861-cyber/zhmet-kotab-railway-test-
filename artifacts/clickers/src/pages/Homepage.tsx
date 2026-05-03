@@ -169,7 +169,7 @@ function HeroSection() {
 
           {/* Immersive Book Display */}
           <motion.div
-            className={`relative hidden lg:block ${isRTL ? 'order-1' : 'order-2'}`}
+            className={`relative mt-16 lg:mt-0 ${isRTL ? 'order-1' : 'order-2'}`}
             initial={{ opacity: 0, scale: 0.8, rotateY: isRTL ? -20 : 20 }}
             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
             transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
