@@ -18,7 +18,7 @@ export function CheckoutPage() {
   const [, navigate] = useLocation();
 
   const [step, setStep] = useState<Step>('cart');
-  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'stripe' | 'instapay' | 'vodafone_cash'>('bank_transfer');
+  const [paymentMethod, setPaymentMethod] = useState<'instapay' | 'vodafone_cash'>('instapay');
   const [transactionId, setTransactionId] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: profile?.full_name || '', phone: profile?.phone || '', address: '', notes: '' });
@@ -239,10 +239,8 @@ export function CheckoutPage() {
                     </h3>
                     <div className="space-y-3">
                       {([
-                        { value: 'bank_transfer', label: isRTL ? 'تحويل بنكي' : 'Bank Transfer', desc: isRTL ? 'يتم التأكيد يدوياً خلال 24 ساعة' : 'Confirmed manually within 24h' },
                         { value: 'instapay', label: 'InstaPay', desc: isRTL ? 'تحويل فوري عبر انستا باي' : 'Instant transfer via InstaPay' },
                         { value: 'vodafone_cash', label: isRTL ? 'فودافون كاش' : 'Vodafone Cash', desc: isRTL ? 'تحويل عبر محفظة فودافون' : 'Transfer via Vodafone wallet' },
-                        { value: 'stripe', label: 'Online Payment (Stripe)', desc: isRTL ? 'دفع فوري بالبطاقة' : 'Instant card payment' },
                       ] as const).map((method) => (
                         <label key={method.value} className={`flex items-center gap-4 p-5 border-2 rounded-2xl cursor-pointer transition-all ${paymentMethod === method.value ? 'border-primary bg-primary/5' : 'border-border bg-white hover:border-primary/30'} ${isRTL ? 'flex-row-reverse' : ''}`}>
                           <input

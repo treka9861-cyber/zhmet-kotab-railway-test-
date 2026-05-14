@@ -19,7 +19,6 @@ const exportCards: ExportCard[] = [
   { type: 'books', title: 'Books Catalog', description: 'All books with pricing, format, author, and status', icon: BookOpen, color: 'bg-blue-50 text-blue-600' },
   { type: 'authors', title: 'Authors List', description: 'Author profiles with social media and bio', icon: Users, color: 'bg-purple-50 text-purple-600' },
   { type: 'orders', title: 'Orders Report', description: 'All orders with customer, status, and total amount', icon: ShoppingBag, color: 'bg-green-50 text-green-600' },
-  { type: 'sales', title: 'Sales Analytics', description: 'Daily sales revenue and order counts', icon: BarChart3, color: 'bg-amber-50 text-amber-600' },
 ];
 
 function downloadExcel(data: Record<string, unknown>[], filename: string) {
@@ -85,27 +84,37 @@ export function AdminExports() {
         break;
       }
       case 'orders': {
-        const rows = (orders ?? []).map((o) => ({
-          'Order ID': o.id,
-          'Customer Email': (o as Record<string, unknown> & { profiles?: { email: string } }).profiles?.email || '',
-          'Customer Name': (o as Record<string, unknown> & { profiles?: { full_name?: string } }).profiles?.full_name || '',
-          'Status': o.status,
-          'Total (EGP)': o.total_amount,
-          'Payment Method': o.payment_method || '',
-          'Items Count': ((o as Record<string, unknown> & { order_items?: unknown[] }).order_items as unknown[])?.length || 0,
-          'Date': format(new Date(o.created_at), 'yyyy-MM-dd HH:mm'),
-        }));
-        downloadExcel(rows, 'orders_report');
-        break;
-      }
-      case 'sales': {
-        const rows = (analytics?.salesByDay ?? []).map((d) => ({
-          'Date': format(new Date((d as { sale_date: string }).sale_date), 'yyyy-MM-dd'),
-          'Orders': (d as { order_count: number }).order_count,
-          'Revenue (EGP)': Number((d as { revenue: number }).revenue).toFixed(2),
-          'Unique Customers': (d as { unique_customers: number }).unique_customers,
-        }));
-        downloadExcel(rows, 'sales_analytics');
+        const rows = (orders ?? []).map((o) => {
+          const typedOrder = o as Record<string, unknown> & { 
+            profiles?: { email: string; full_name?: string; phone?: string };
+            order_items?: { books?: { title_en: string; title_ar: string }; quantity: number }[];
+            transaction_id?: string;
+            shipping_address?: string;
+            notes?: string;
+          };
+          
+          // Flatten book titles into a single string
+          const bookTitles = typedOrder.order_items?.map(item => 
+            `${item.books?.title_en || 'Unknown'} (${item.quantity}x)`
+          ).join(', ') || 'No Items';
+
+          return {
+            'Order ID': o.id,
+            'Date': format(new Date(o.created_at), 'yyyy-MM-dd HH:mm'),
+            'Customer Name': typedOrder.profiles?.full_name || 'Anonymous',
+            'Customer Email': typedOrder.profiles?.email || '',
+            'Customer Phone': typedOrder.profiles?.phone || '',
+            'Books Purchased': bookTitles,
+            'Total Paid (EGP)': o.total_amount,
+            'Status': o.status.toUpperCase(),
+            'Payment Method': o.payment_method || 'N/A',
+            'Transaction ID': typedOrder.transaction_id || 'N/A',
+            'Shipping Address': typedOrder.shipping_address || '',
+            'Customer Notes': typedOrder.notes || '',
+            'Items Count': typedOrder.order_items?.length || 0,
+          };
+        });
+        downloadExcel(rows, 'orders_report_detailed');
         break;
       }
     }

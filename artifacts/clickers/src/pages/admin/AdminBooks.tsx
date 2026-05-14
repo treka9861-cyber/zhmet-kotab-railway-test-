@@ -5,6 +5,8 @@ import { AdminLayout, AdminPageHeader } from '@/components/admin/AdminLayout';
 import { useBooks, useDeleteBook, useUpsertBook, useAuthors, useUpsertAuthor, useWorlds } from '@/services/supabase.hooks';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { supabase } from '@/lib/supabase';
+import { ImageUpload } from '@/components/ImageUpload';
+import { UploadResult } from '@/services/upload';
 
 const GENRES = ['Fantasy', 'Sci-Fi', 'Historical', 'Horror', 'Romance', 'Adventure', 'Literary', 'Mystery', 'General'];
 const GENRES_AR = ['الخيال', 'الخيال العلمي', 'التاريخي', 'الرعب', 'الرومانسية', 'المغامرة', 'الأدبي', 'الغموض', 'عام'];
@@ -16,6 +18,7 @@ function BookFormModal({ book, onClose }: { book?: Record<string, unknown> | nul
   const upsertAuthor = useUpsertAuthor();
   const [form, setForm] = useState<Record<string, unknown>>({
     title_ar: '', title_en: '', author_id: '', world_id: '', cover_url: '',
+    image_public_id: '', image_storage_type: 'local',
     description_ar: '', description_en: '', price: 0, original_price: '',
     genre: 'Fantasy', genre_ar: 'الخيال', format: 'both', language: 'ar',
     pages: 0, published_date: '', is_featured: false, is_new: false,
@@ -102,44 +105,16 @@ function BookFormModal({ book, onClose }: { book?: Record<string, unknown> | nul
 
           <div className="md:col-span-2">
             <label className="block text-xs font-black uppercase tracking-wider text-primary/40 mb-2">Cover Image</label>
-            <div className="flex gap-4 items-center">
-              {Boolean(form.cover_url) && (
-                <img src={form.cover_url as string} alt="Cover Preview" className="h-24 w-16 object-cover rounded shadow-lg border border-border" />
-              )}
-              <div className="flex-1">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setIsUploading(true);
-                    
-                    const ext = file.name.split('.').pop();
-                    const fileName = `${Math.random()}.${ext}`;
-                    const filePath = `covers/${fileName}`;
-                    
-                    // Upload to Storage
-                    const { error: uploadError } = await supabase.storage.from('covers').upload(filePath, file);
-                    
-                    if (uploadError) {
-                      alert('Error uploading image: ' + uploadError.message);
-                      setIsUploading(false);
-                      return;
-                    }
-                    
-                    // Get public URL
-                    const { data: { publicUrl } } = supabase.storage.from('covers').getPublicUrl(filePath);
-                    set('cover_url', publicUrl);
-                    setIsUploading(false);
-                  }}
-                  className="w-full px-4 py-3 border border-border rounded-xl text-primary font-bold bg-[#FDFBF7] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer"
-                />
-                <p className="text-xs uppercase text-primary/40 tracking-wider mt-2 font-bold font-sans">
-                  {isUploading ? 'Uploading Please Wait...' : 'Supported: JPG, PNG, WEBP (Max 2MB)'}
-                </p>
-              </div>
-            </div>
+            <ImageUpload
+              folder="stories"
+              currentImageUrl={form.cover_url as string}
+              aspectRatio="portrait"
+              onUploadComplete={(result: UploadResult) => {
+                set('cover_url', result.imageUrl);
+                set('image_public_id', result.publicId);
+                set('image_storage_type', result.storageType);
+              }}
+            />
           </div>
 
           <div>

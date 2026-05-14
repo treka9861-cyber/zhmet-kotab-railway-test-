@@ -5,6 +5,7 @@ import compression from "compression";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import router from "./routes";
+import uploadRouter from "./routes/upload";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -70,6 +71,7 @@ app.use(
   }),
 );
 
+app.use("/api/upload", uploadRouter);
 app.use("/api", router);
 
 export default app;
