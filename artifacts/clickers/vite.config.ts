@@ -21,19 +21,52 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
-    // Enable source maps for easier debugging if needed, but usually false for production
     sourcemap: false,
-    // esbuild is Vite's built-in minifier — fast and zero config
     minify: "esbuild",
+    // Raise the warning limit slightly — our chunks are now properly split
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // ── Core React runtime (cached forever, rarely changes)
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
+            return "vendor-react";
+          }
+          // ── Routing
+          if (id.includes("node_modules/wouter")) {
+            return "vendor-router";
+          }
+          // ── Supabase (large SDK)
+          if (id.includes("node_modules/@supabase")) {
+            return "vendor-supabase";
+          }
+          // ── Animations (Framer Motion is heavy)
+          if (id.includes("node_modules/framer-motion")) {
+            return "vendor-animations";
+          }
+          // ── Charts & data viz
+          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3")) {
+            return "vendor-charts";
+          }
+          // ── UI component libraries (Radix, etc.)
+          if (id.includes("node_modules/@radix-ui")) {
+            return "vendor-ui";
+          }
+          // ── Tanstack Query
+          if (id.includes("node_modules/@tanstack")) {
+            return "vendor-query";
+          }
+          // ── Icons
+          if (id.includes("node_modules/lucide-react") || id.includes("node_modules/react-icons")) {
+            return "vendor-icons";
+          }
+          // ── Excel/file utils (heavy, rarely needed)
+          if (id.includes("node_modules/xlsx") || id.includes("node_modules/axios")) {
+            return "vendor-utils";
+          }
+          // ── Everything else in node_modules
           if (id.includes("node_modules")) {
-            return id
-              .toString()
-              .split("node_modules/")[1]
-              .split("/")[0]
-              .toString();
+            return "vendor-misc";
           }
         },
       },
