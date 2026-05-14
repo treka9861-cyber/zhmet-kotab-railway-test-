@@ -23,51 +23,24 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     minify: "esbuild",
-    // Raise the warning limit slightly — our chunks are now properly split
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // ── Core React runtime (cached forever, rarely changes)
-          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
-            return "vendor-react";
-          }
-          // ── Routing
-          if (id.includes("node_modules/wouter")) {
-            return "vendor-router";
-          }
-          // ── Supabase (large SDK)
-          if (id.includes("node_modules/@supabase")) {
-            return "vendor-supabase";
-          }
-          // ── Animations (Framer Motion is heavy)
-          if (id.includes("node_modules/framer-motion")) {
-            return "vendor-animations";
-          }
-          // ── Charts & data viz
-          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3")) {
-            return "vendor-charts";
-          }
-          // ── UI component libraries (Radix, etc.)
-          if (id.includes("node_modules/@radix-ui")) {
-            return "vendor-ui";
-          }
-          // ── Tanstack Query
-          if (id.includes("node_modules/@tanstack")) {
-            return "vendor-query";
-          }
-          // ── Icons
-          if (id.includes("node_modules/lucide-react") || id.includes("node_modules/react-icons")) {
-            return "vendor-icons";
-          }
-          // ── Excel/file utils (heavy, rarely needed)
-          if (id.includes("node_modules/xlsx") || id.includes("node_modules/axios")) {
-            return "vendor-utils";
-          }
-          // ── Everything else in node_modules
-          if (id.includes("node_modules")) {
-            return "vendor-misc";
-          }
+        manualChunks: {
+          // Core React runtime — stable, cached forever
+          "vendor-react": ["react", "react-dom"],
+          // Routing
+          "vendor-router": ["wouter"],
+          // Supabase SDK
+          "vendor-supabase": ["@supabase/supabase-js"],
+          // Animations — heavy, load separately
+          "vendor-animations": ["framer-motion"],
+          // TanStack Query — data layer
+          "vendor-query": ["@tanstack/react-query"],
+          // Icons
+          "vendor-icons": ["lucide-react"],
+          // Heavy utils only used in admin
+          "vendor-xlsx": ["xlsx"],
         },
       },
     },
